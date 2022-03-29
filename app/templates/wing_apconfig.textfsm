@@ -1,0 +1,12 @@
+Value name (.*?)
+Value rfdomain (.*?)
+Value macaddr ((\S{2}-){5}\S{2})
+Value floor (.*?)
+
+
+Start
+  ^\w{2}(\d){3,4}\s${macaddr}s*$$
+  ^\shostname\s${name}s*$$
+  ^\suse\srf-domain\s${rfdomain}s*$$
+  ^\sfloor\s"${floor}"s*$$
+  ^\sfloor\s${floor}s*$$
