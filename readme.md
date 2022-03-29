@@ -30,7 +30,7 @@ Detailed instructions on creating the API token will be added in the full docume
 3. At the top select Apps then 'Register a new app'
 4. Give the app a name like 'reverse geo coords' and select 'Register'
 5. Under credentials in the newly created app, select API Keys, then click 'Create API key'
-6. Copy the created API key and add it between the quotes on line 22 of the wing_migrate.py script
+6. Copy the created API key and add it between the quotes on line 17 of the wing_migrate.py script
 
 If there is no API token or if the geo-coordinates are not configured in the rf-domains, the buildings will be created with 'Unknown Address' in XIQ
 
