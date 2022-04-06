@@ -29,7 +29,7 @@ from app.mapImportLogger import logger
 logger = logging.getLogger('MapImporter.WingImporter')
 
 log_ap_floor_cfg = False
-geo_coords = False
+
 
 PATH = current_dir
 os.environ["NET_TEXTFSM"]='{}/templates/'.format(PATH)
@@ -41,6 +41,8 @@ class Wing:
         if geoApiKey:
             self.apiKey = geoApiKey
             self.geo_coords = True
+        else:
+            self.geo_coords = False
         self.projectFolder = f"{PATH}/project"
         if os.path.exists(self.projectFolder) and os.path.isdir(self.projectFolder):
             shutil.rmtree(self.projectFolder)
