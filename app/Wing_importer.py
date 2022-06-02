@@ -337,7 +337,8 @@ class Wing:
                     filt = (self.ap_df['floor'] == floor) & (self.ap_df['rfdomain'] == row['name'])
                     floor_aps = self.ap_df.loc[filt]
                     # Variables used to space out APs onto floorplan
-                    rangeList = [*range(0, 300, 30)]
+                    rangeList = [*range(0, 92, 9)] 
+                    #rangeList = [*range(0, 300, 30)]
                     pageCount = 0
                     xList = []
                     yList = []    

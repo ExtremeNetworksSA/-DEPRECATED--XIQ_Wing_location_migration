@@ -52,10 +52,19 @@ def updateApWithId(ap):
     filt = wing_ap_df['mac'] == ap['mac_address']
     wing_ap_df.loc[filt,'xiq_id'] = ap['id']
 
+def checkNameLength(name, type):
+    while len(name) > 32:
+        sys.stdout.write(YELLOW)
+        sys.stdout.write(f"'{name}' is longer than 32 characters allowed for a name.\n")
+        sys.stdout.write(RESET)
+        name = input(f"Please enter a new name for the {type} that is less than 32 characters: ")
+    return name
+
 def locationCreationLoop(location_tree,location_id):
     global sublocation_df
     global location_df
     for location_name in location_tree:
+        location_name = checkNameLength(location_name, type='location')
         if location_name not in sublocation_df['name'].unique():
             location_data = {"parent_id": f"{location_id}", "name": location_name}
             location_id = x.createLocation(location_name, location_data)
@@ -90,24 +99,24 @@ filename = filename.replace("'", "")
 print("Gathering Wing Data.... ", end='')
 sys.stdout.flush()
 x = Wing(filename, APNoFloorLogging= not args.noaplog, geoApiKey=geoApiKey)
-#try:
-rawData, output_preview = x.exportFile()
-#except ValueError as e:
-#    print("Failed")
-#    sys.stdout.write(RED)
-#    sys.stdout.write(e)
-#    sys.stdout.write("script is exiting....\n")
-#    sys.stdout.write(RESET)
-#    raise SystemExit
-#except:
-#    log_msg = "Unknown Error opening and exporting Wing Tech-dump data"
-#    print("Failed")
-#    sys.stdout.write(RED)
-#    sys.stdout.write(log_msg + "\n")
-#    sys.stdout.write("script is exiting....\n")
-#    sys.stdout.write(RESET)
-#    logger.error(log_msg)
-#    raise SystemExit
+try:
+    rawData, output_preview = x.exportFile()
+except ValueError as e:
+    print("Failed")
+    sys.stdout.write(RED)
+    sys.stdout.write(e)
+    sys.stdout.write("script is exiting....\n")
+    sys.stdout.write(RESET)
+    raise SystemExit
+except:
+    log_msg = "Unknown Error opening and exporting Wing Tech-dump data"
+    print("Failed")
+    sys.stdout.write(RED)
+    sys.stdout.write(log_msg + "\n")
+    sys.stdout.write("script is exiting....\n")
+    sys.stdout.write(RESET)
+    logger.error(log_msg)
+    raise SystemExit
 print("Complete\n")
 
 #pprint(rawData)

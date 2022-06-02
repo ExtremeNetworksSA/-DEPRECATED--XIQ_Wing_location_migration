@@ -1,13 +1,13 @@
 # WiNG Location Migration to XIQ
-### wing_migrate.py
+### XIQ_wing_migrate.py
 
 ## Purpose
 This script can be used to migrate the location hierarchy, rf-domains, and floors from WiNG to XIQ. This script will also assign APs that are configured in WiNG to the correct locations in XIQ after the locations are created. A tech-dump from the wing controller will be needed for the script. The script will parse the rf-domain data and device data using a couple files from within the tech-dump. Nothing needs to be done with the tech-dump. The script will ask for the file, just put the name of the tar.gz file (with its path).
 
 ## Information
 ### Needed files
-The wing_migrate.py script uses several other files. If these files are missing the script will not function.
-In the same folder as the wing_migrate.py script there should be an /app/ folder. Inside this folder should be a mapImportLogger.py, Wing_importer.py, xiq_exporter.py and another folder called /templates/. After running the script a new file 'map_importer.log will be created. The templates folder should have 2 files - wing_apconfig.textfsm and wing_rfomain.textfsm.
+The XIQ_wing_migrate.py script uses several other files. If these files are missing the script will not function.
+In the same folder as the XIQ_wing_migrate.py script there should be an /app/ folder. Inside this folder should be a mapImportLogger.py, Wing_importer.py, xiq_exporter.py and another folder called /templates/. After running the script a new file 'map_importer.log will be created. The templates folder should have 2 files - wing_apconfig.textfsm and wing_rfomain.textfsm.
 
 ### Location hierarchy
 The tree-node of the rf-domain will be used to build the location hierarchy. If there is not a tree-node configured in the rf-domain the rf-domain (building) will be created at the global view level in XIQ. Otherwise the rf-domain will be created as a building in the location hierarchy. 
@@ -30,7 +30,7 @@ Detailed instructions on creating the API token will be added in the full docume
 3. At the top select Apps then 'Register a new app'
 4. Give the app a name like 'reverse geo coords' and select 'Register'
 5. Under credentials in the newly created app, select API Keys, then click 'Create API key'
-6. Copy the created API key and add it between the quotes on line 17 of the wing_migrate.py script
+6. Copy the created API key and add it between the quotes on line 17 of the XIQ_wing_migrate.py script
 
 If there is no API token or if the geo-coordinates are not configured in the rf-domains, the buildings will be created with 'Unknown Address' in XIQ
 
@@ -63,7 +63,7 @@ This flag will allow you to create the locations and assign the devices to locat
 ```
 --noaplog
 ```
-This flag will suppress the log messages that are normally created when devices do no have a floor assigned to them in their config. If you typically do not assign a floor to the device the log file could fill up with warning messages about APs not being set to a floor and the script assigning them to 'floor1'.
+This flag will suppress the log messages that are normally created when devices do not have a floor assigned to them in their config. If you typically do not assign a floor to the device the log file could fill up with warning messages about APs not being set to a floor and the script assigning them to 'floor1'.
 
 
 ## requirements
