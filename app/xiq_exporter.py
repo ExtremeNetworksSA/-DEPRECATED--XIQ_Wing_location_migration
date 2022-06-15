@@ -469,12 +469,3 @@ class XIQ:
         url = f"{self.URL}/devices/{ap_id}/location"
         response = self.__setup_put_api_call(info,url,payload=payload)
         return response
-#MAIN
-'''
-username = "tismith@extremenetworks.com"
-password = "HEAX7nong5gru@prog"
-
-x = XIQ(username,password)
-#location_df = x.gatherLocations()
-
-'''
