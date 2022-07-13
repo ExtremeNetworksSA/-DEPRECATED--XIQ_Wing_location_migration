@@ -289,7 +289,7 @@ class XIQ:
 
     #BUILDINGS
     def __buildLocationDf(self, location, pname = 'Global'):
-        if location['parent_id'] == None:
+        if 'parent_id' not in location:
             temp_df = pd.DataFrame([{'id': location['id'], 'name':location['name'], 'type': 'Global', 'parent':pname}])
             self.locationTree_df = pd.concat([self.locationTree_df, temp_df], ignore_index=True)
         else:
