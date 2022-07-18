@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-from audioop import reverse
-from nis import match
-from operator import ge
+#from audioop import reverse
+#from nis import match
+#from operator import ge
 import tarfile
 import json
 import os
