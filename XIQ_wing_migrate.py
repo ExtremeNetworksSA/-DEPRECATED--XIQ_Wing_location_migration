@@ -251,10 +251,10 @@ for floor in rawData['floors']:
     filt = (location_df['type'] == 'FLOOR') & (location_df['parent'] == building_name)
     floor_df = location_df.loc[filt]
     if floor['name'] in floor_df['name'].unique():
-        log_msg = f"There is already a floor with the name {floor['name']} in building {building_name} \n"
+        log_msg = f"There is already a floor with the name {floor['name']} in building {building_name}"
         logger.info(log_msg)
         sys.stdout.write(YELLOW)
-        sys.stdout.write(log_msg+'n')
+        sys.stdout.write(log_msg+'\n')
         sys.stdout.write(RESET)
         filt = floor_df['name'] == floor['name']
         floor['xiq_floor_id'] = floor_df.loc[filt, 'id'].values[0]
