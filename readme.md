@@ -49,7 +49,8 @@ Then you can preview what the hierarchy will look like in XIQ. You can choose to
 > NOTE: if you have a large config this output can be truncated depending on how many lines your terminal window allows
 
 Once proceeding to create in XIQ you will be asked for your XIQ login credentials.
-
+> NOTE: you can by pass this section by entering a valid API Token to line 18 of the XIQ_wing_migrate.py script
+>  - if the added token isn't valid you will see the script fail to gather location tree info with a HTTP Status Code: 401
 ### messages
 As locations, buildings, and floors are created, messages will appear in the terminal window. If a location exists with the same name a message will be displayed that the locations was found and will be used. 
 > NOTE: XIQ requires that each location and building have their own unique name. Floors within a building also have to have their own unique name.

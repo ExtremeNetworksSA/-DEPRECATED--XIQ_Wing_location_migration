@@ -17,24 +17,27 @@ logger = logging.getLogger('MapImporter.xiq_exporter')
 PATH = current_dir
 
 class XIQ:
-    def __init__(self, user_name, password):
+    def __init__(self, user_name=None, password=None, token=None):
         self.URL = "https://api.extremecloudiq.com"
         self.headers = {"Accept": "application/json", "Content-Type": "application/json"}
         self.totalretries = 5
         self.locationTree_df = pd.DataFrame(columns = ['id', 'name', 'type', 'parent'])
-        try:
-            self.__getAccessToken(user_name, password)
-        except ValueError as e:
-            print(e)
-            raise SystemExit
-        except HTTPError as e:
-           print(e)
-           raise SystemExit
-        except:
-            log_msg = "Unknown Error: Failed to generate token for XIQ"
-            logger.error(log_msg)
-            print(log_msg)
-            raise SystemExit 
+        if token:
+            self.headers["Authorization"] = "Bearer " + token
+        else:
+            try:
+                self.__getAccessToken(user_name, password)
+            except ValueError as e:
+                print(e)
+                raise SystemExit
+            except HTTPError as e:
+               print(e)
+               raise SystemExit
+            except:
+                log_msg = "Unknown Error: Failed to generate token for XIQ"
+                logger.error(log_msg)
+                print(log_msg)
+                raise SystemExit 
 
     #API CALLS
     def __setup_get_api_call(self, info, url):
@@ -135,8 +138,15 @@ class XIQ:
         if response.status_code != 200:
             log_msg = f"Error - HTTP Status Code: {str(response.status_code)}"
             logger.error(f"{log_msg}")
-            logger.warning(f"\t\t{response}")
-            raise ValueError(log_msg)  
+            try:
+                data = response.json()
+            except json.JSONDecodeError:
+                logger.warning(f"\t\t{response.text()}")
+            else:
+                if 'error_message' in data:
+                    logger.warning(f"\t\t{data['error_message']}")
+                    raise ValueError(log_msg)
+            raise ValueError(log_msg) 
         try:
             data = response.json()
         except json.JSONDecodeError:

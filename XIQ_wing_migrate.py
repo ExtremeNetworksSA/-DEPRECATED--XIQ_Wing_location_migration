@@ -15,6 +15,7 @@ current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentfra
 logger = logging.getLogger('MapImporter.Main')
 
 geoApiKey = ''
+XIQ_API_token = ''
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--external',action="store_true", help="Optional - adds External Account selection, to create floorplans and APs on external VIQ")
@@ -134,13 +135,13 @@ if preview == 'y':
         raise SystemExit
 
 ## XIQ EXPORT
-
-print("Enter your XIQ login credentials")
-username = input("Email: ")
-password = getpass.getpass("Password: ")
-
-
-x = XIQ(username,password)
+if XIQ_API_token:
+    x = XIQ(token=XIQ_API_token)
+else:
+    print("Enter your XIQ login credentials")
+    username = input("Email: ")
+    password = getpass.getpass("Password: ")
+    x = XIQ(user_name=username,password = password)
 #OPTIONAL - use externally managed XIQ account
 if args.external:
     accounts, viqName = x.selectManagedAccount()
@@ -182,7 +183,6 @@ if args.external:
 
 xiq_building_exist = False
 
-#TODO - check if this works with large location Tree   
 location_df = x.gatherLocations()
 filt = location_df['type'] == 'BUILDING'
 building_df = location_df.loc[filt]
