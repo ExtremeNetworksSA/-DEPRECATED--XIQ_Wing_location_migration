@@ -141,7 +141,7 @@ class XIQ:
             try:
                 data = response.json()
             except json.JSONDecodeError:
-                logger.warning(f"\t\t{response.text()}")
+                logger.warning(f"\t\t{response.text}")
             else:
                 if 'error_message' in data:
                     logger.warning(f"\t\t{data['error_message']}")
@@ -172,7 +172,7 @@ class XIQ:
             try:
                 data = response.json()
             except json.JSONDecodeError:
-                logger.warning(f"\t\t{response.text()}")
+                logger.warning(f"\t\t{response.text}")
             else:
                 if 'error_message' in data:
                     logger.warning(f"\t\t{data['error_message']}")
@@ -205,7 +205,7 @@ class XIQ:
             try:
                 data = response.json()
             except json.JSONDecodeError:
-                logger.warning(f"\t\t{response.text()}")
+                logger.warning(f"\t\t{response.text}")
             else:
                 if 'error_message' in data:
                     logger.warning(f"\t\t{data['error_message']}")
@@ -231,7 +231,7 @@ class XIQ:
             try:
                 data = response.json()
             except json.JSONDecodeError:
-                logger.warning(f"\t\t{response.text()}")
+                logger.warning(f"\t\t{response.text}")
             else:
                 if 'error_message' in data:
                     logger.warning(f"\t\t{data['error_message']}")

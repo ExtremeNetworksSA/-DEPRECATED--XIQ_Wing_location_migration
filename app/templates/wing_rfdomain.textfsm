@@ -7,7 +7,12 @@ Value locationTree (.*?)
 
 Start
   ^\sgeo-coordinates\s${geo_coor}s*$$
+  ^\slayout\sarea\s${area}\sfloor\s?${floors}\s\d+\description.*s*$$
+  ^\slayout\sarea\s${area}\sfloor\s?${floors}\s\d+\smap-location.*s*$$
+  ^\slayout\sarea\s${area}\sfloor\s?${floors}\s\d+s*$$
   ^\slayout\sarea\s${area}\sfloor\s?${floors}\sdescription.*s*$$
+  ^\slayout\sarea\s${area}\sfloor\s?${floors}\smap-location.*s*$$
+  ^\slayout\sarea\s${area}\sfloor\s"?${floors}"\s*\d+s*$$
   ^\slayout\sarea\s${area}\sfloor\s"?${floors}"\s*s*$$
   ^\slayout\sarea\s${area}\sfloor\s?${floors}s*$$
   ^\stree-node\s${locationTree}s*$$
