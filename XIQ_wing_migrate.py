@@ -313,25 +313,31 @@ for i in range(0, len(listOfMacs),sizeofbatch):
 
 if apsToConfigure:
     print(f"Starting to move {len(apsToConfigure)} out of the {len(rawData['aps'])} APs that were found in this XIQ instance.")
-    for ap_mac in apsToConfigure:
-        filt = wing_ap_df['mac'] == ap_mac
-        ap_df = wing_ap_df[filt]
-        data = {
-            "location_id" : ap_df['location_id'].values[0],
-            "x" : int(ap_df['x'].values[0]),
-            "y" : int(ap_df['y'].values[0]),
-            "latitude": 0,
-            "longitude": 0
-        }
-        response = x.changeAPLocation(ap_df['xiq_id'].values[0], data)
-        if response != "Success":
-            log_msg = (f"Failed to set location of {ap_df['xiq_id'].values[0]}")
-            sys.stdout.write(RED)
-            sys.stdout.write(log_msg + "\n")
-            sys.stdout.write(RESET)
-            logging.error(log_msg)
-        else:
-            logger.info(f"Set location for {ap_df['name'].values[0]}")
+    # Batching for messages
+    sizeofbatch = 100
+    for i in range(0, len(apsToConfigure), sizeofbatch):
+        if displayCount == True:
+            print(f"Moving APs {i}-{i+sizeofbatch} of {len(apsToConfigure)}")
+        batch = apsToConfigure[i:i+sizeofbatch]
+        for ap_mac in batch:
+            filt = wing_ap_df['mac'] == ap_mac
+            ap_df = wing_ap_df[filt]
+            data = {
+                "location_id" : ap_df['location_id'].values[0],
+                "x" : int(ap_df['x'].values[0]),
+                "y" : int(ap_df['y'].values[0]),
+                "latitude": 0,
+                "longitude": 0
+            }
+            response = x.changeAPLocation(ap_df['xiq_id'].values[0], data)
+            if response != "Success":
+                log_msg = (f"Failed to set location of {ap_df['xiq_id'].values[0]}")
+                sys.stdout.write(RED)
+                sys.stdout.write(log_msg + "\n")
+                sys.stdout.write(RESET)
+                logging.error(log_msg)
+            else:
+                logger.info(f"Set location for {ap_df['name'].values[0]}")
     print("Finished moving APs and placing them")
 else:
     sys.stdout.write(YELLOW)
