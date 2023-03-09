@@ -5,6 +5,7 @@ import inspect
 import sys
 import json
 import requests
+import time
 import pandas as pd
 current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parent_dir = os.path.dirname(current_dir)
@@ -16,10 +17,17 @@ logger = logging.getLogger('MapImporter.xiq_exporter')
 
 PATH = current_dir
 
+loc_count = 0
+tic = 0
+
 class XIQ:
     def __init__(self, user_name=None, password=None, token=None):
         self.URL = "https://api.extremecloudiq.com"
         self.headers = {"Accept": "application/json", "Content-Type": "application/json"}
+        self.proxyDict = {
+            "http": "",
+            "https": ""
+        }
         self.totalretries = 5
         self.locationTree_df = pd.DataFrame(columns = ['id', 'name', 'type', 'parent'])
         if token:
@@ -127,7 +135,7 @@ class XIQ:
 
     def __get_api_call(self, url):
         try:
-            response = requests.get(url, headers= self.headers)
+            response = requests.get(url, headers= self.headers, proxies=self.proxyDict)
         except HTTPError as http_err:
             logger.error(f'HTTP error occurred: {http_err} - on API {url}')
             raise ValueError(f'HTTP error occurred: {http_err}') 
@@ -156,7 +164,7 @@ class XIQ:
 
     def __post_api_call(self, url, payload):
         try:
-            response = requests.post(url, headers= self.headers, data=payload)
+            response = requests.post(url, headers= self.headers, data=payload, proxies=self.proxyDict)
         except HTTPError as http_err:
             logger.error(f'HTTP error occurred: {http_err} - on API {url}')
             raise ValueError(f'HTTP error occurred: {http_err}') 
@@ -188,9 +196,9 @@ class XIQ:
     def __put_api_call(self, url, payload=''):
         try:
             if payload:
-                response = requests.put(url, headers= self.headers, data=payload)
+                response = requests.put(url, headers= self.headers, data=payload, proxies=self.proxyDict)
             else:
-                response = requests.put(url, headers= self.headers)
+                response = requests.put(url, headers= self.headers, proxies=self.proxyDict)
         except HTTPError as http_err:
             logger.error(f'HTTP error occurred: {http_err} - on API {url}')
             raise ValueError(f'HTTP error occurred: {http_err}') 
@@ -217,7 +225,7 @@ class XIQ:
         headers = self.headers.copy()
         del headers['Content-Type']
         try:
-            response = requests.post(url, headers= headers, files=files)
+            response = requests.post(url, headers= headers, files=files, proxies=self.proxyDict)
         except HTTPError as http_err:
             logger.error(f'HTTP error occurred: {http_err} - on API {url}')
             raise ValueError(f'HTTP error occurred: {http_err}') 
@@ -299,13 +307,25 @@ class XIQ:
 
     #BUILDINGS
     def __buildLocationDf(self, location, pname = 'Global'):
+        global loc_count
+        loc_count += 1
+        toc = time.perf_counter()
+        print(f'{toc - tic:0.1f}', end='\r')
+        sys.stdout.flush()
         if 'parent_id' not in location:
             temp_df = pd.DataFrame([{'id': location['id'], 'name':location['name'], 'type': 'Global', 'parent':pname}])
             self.locationTree_df = pd.concat([self.locationTree_df, temp_df], ignore_index=True)
         else:
             temp_df = pd.DataFrame([{'id': location['id'], 'name':location['name'], 'type': location['type'], 'parent':pname}])
             self.locationTree_df = pd.concat([self.locationTree_df, temp_df], ignore_index=True)
+        if location['type'] == 'Location':
+            url = "{}/locations/tree?parentId={}&expandChildren=false".format(self.URL,location['id'])
+            location['children'] = self.__setup_get_api_call("gather child for {}".format(location['name']),url)
+        elif location['type'] == "BUILDING":
+            url = "{}/locations/tree?parentId={}&expandChildren=true".format(self.URL,location['id'])
+            location['children'] = self.__setup_get_api_call("gather child for {}".format(location['name']),url)
         r = json.dumps(location['children'])
+        #print(r)
         if location['children']:
             parent_name = location['name']
             for child in location['children']:
@@ -317,7 +337,7 @@ class XIQ:
     #ACCOUNT SWITCH
     def selectManagedAccount(self):
         self.__getVIQInfo()
-        info="gather accessible external XIQ acccounts"
+        info="gather accessible external XIQ accounts"
         success = 0
         url = "{}/account/external".format(self.URL)
         for count in range(1, self.totalretries):
@@ -381,11 +401,19 @@ class XIQ:
 
     # LOCATIONS
     def gatherLocations(self):
+        global loc_count
+        global tic
+        tic = time.perf_counter()
         info=f"gather location tree"
-        url = "{}/locations/tree".format(self.URL)
+        url = "{}/locations/tree?expandChildren=false".format(self.URL)
         response = self.__setup_get_api_call(info,url)
         for location in response:
+            global_id = location['id']
+            url = "{}/locations/tree?parentId={}&expandChildren=false".format(self.URL,global_id)
+            child_response = self.__setup_get_api_call(info,url)
+            location['children'] = child_response
             self.__buildLocationDf(location)
+        logger.info("Collected Location Tree in {} API calls.".format(loc_count))
         return (self.locationTree_df)
 
     def createLocation(self, location_name, data):

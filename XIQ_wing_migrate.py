@@ -182,8 +182,12 @@ if args.external:
                     x.switchAccount(newViqID, newViqName)
 
 xiq_building_exist = False
-
+print("Starting to collect locations ")
+sys.stdout.flush()
 location_df = x.gatherLocations()
+print("Complete")
+print(f"Collected {len(location_df.index)} Location/Building/Floor elements")
+sys.stdout.flush()
 filt = location_df['type'] == 'BUILDING'
 building_df = location_df.loc[filt]
 filt = location_df['type'] == 'Location'
@@ -207,6 +211,7 @@ if rawData['building']:
             sys.stdout.write(YELLOW)
             sys.stdout.write(log_msg + "\n\n")
             sys.stdout.write(RESET)
+            sys.stdout.flush()
 
         else:
             data = building.copy()
@@ -220,6 +225,7 @@ if rawData['building']:
                     sys.stdout.write(YELLOW)
                     sys.stdout.write(f"{e} {building['name']} will be placed under the Global view.")
                     sys.stdout.write(RESET)
+                    sys.stdout.flush()
             del data['building_id']
             del data['xiq_building_id']
             if not data['address'].strip():
@@ -231,6 +237,7 @@ if rawData['building']:
                 sys.stdout.write(GREEN)
                 sys.stdout.write(log_msg+'\n\n')
                 sys.stdout.write(RESET)
+                sys.stdout.flush()
                 logger.info(log_msg)
 
 
@@ -243,6 +250,7 @@ for floor in rawData['floors']:
         sys.stdout.write(YELLOW)
         sys.stdout.write(log_msg+'n')
         sys.stdout.write(RESET)
+        sys.stdout.flush()
         continue
     filt = wing_building_df['building_id'] == floor['associated_building_id']
     xiq_building_id = wing_building_df.loc[filt, 'xiq_building_id'].values[0]
@@ -256,6 +264,7 @@ for floor in rawData['floors']:
         sys.stdout.write(YELLOW)
         sys.stdout.write(log_msg+'\n')
         sys.stdout.write(RESET)
+        sys.stdout.flush()
         filt = floor_df['name'] == floor['name']
         floor['xiq_floor_id'] = floor_df.loc[filt, 'id'].values[0]
         continue
@@ -270,6 +279,7 @@ for floor in rawData['floors']:
         sys.stdout.write(GREEN)
         sys.stdout.write(log_msg+'\n\n')
         sys.stdout.write(RESET)
+        sys.stdout.flush()
         logger.info(log_msg)
 
 # ADD APS TO FLOORS
@@ -299,6 +309,7 @@ for i in range(0, len(listOfMacs),sizeofbatch):
     apMacFound = False
     if displayCount == True:
         print(f"Checking for APs {i}-{i+sizeofbatch} of {len(listOfMacs)}")
+        sys.stdout.flush()
     # check if they exist 
     existingAps = x.checkApsByMac(batch)
     for ap in existingAps:
@@ -318,6 +329,7 @@ if apsToConfigure:
     for i in range(0, len(apsToConfigure), sizeofbatch):
         if displayCount == True:
             print(f"Moving APs {i}-{i+sizeofbatch} of {len(apsToConfigure)}")
+            sys.stdout.flush()
         batch = apsToConfigure[i:i+sizeofbatch]
         for ap_mac in batch:
             filt = wing_ap_df['mac'] == ap_mac
