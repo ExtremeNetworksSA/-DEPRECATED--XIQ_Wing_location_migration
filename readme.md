@@ -7,10 +7,12 @@ This script can be used to migrate the location hierarchy, rf-domains, and floor
 ## Information
 ### Needed files
 The XIQ_wing_migrate.py script uses several other files. If these files are missing the script will not function.
-In the same folder as the XIQ_wing_migrate.py script there should be an /app/ folder. Inside this folder should be a mapImportLogger.py, Wing_importer.py, xiq_exporter.py and another folder called /templates/. After running the script a new file 'map_importer.log will be created. The templates folder should have 2 files - wing_apconfig.textfsm and wing_rfomain.textfsm.
+In the same folder as the XIQ_wing_migrate.py script there should be an /app/ folder. Inside this folder should be a mapImportLogger.py, Wing_importer.py, xiq_exporter.py, cc_map.csv, and another folder called /templates/. After running the script a new file 'map_importer.log will be created. The templates folder should have 2 files - wing_apconfig.textfsm and wing_rfomain.textfsm.
 
 ### Location hierarchy
-The tree-node of the rf-domain will be used to build the location hierarchy. If there is not a tree-node configured in the rf-domain the rf-domain (building) will be created at the global view level in XIQ. Otherwise the rf-domain will be created as a building in the location hierarchy. 
+The tree-node of the rf-domain will be used to build the location hierarchy. If there are 4 elements in the Treenode the script will prompt with options as XIQ only allows 3 level of hierarchy above a building. The lowest treenode element will be come the site, and any higher elements will be come site-groups (folders). If there is not a tree-node configured in the rf-domain the rf-domain (building). The script will create a site named "Site-{{rf_domain name}}", this site will be created at the global view level in XIQ. Otherwise the rf-domain will be created as a building in the location hierarchy from the treenode info. 
+
+
 
 ### Rf-domains
 
@@ -43,6 +45,50 @@ Please enter the Wing Tech-dump File:
 You can enter the name of the file, including the full path. Or on a mac you can simply click and drag the file to the terminal window
 > NOTE: This process can take a few minutes depending on the size of your config.
 
+If the treenode element of any rf-domain is using all for sections a prompt will be presented to make a selection.
+```
+#################
+###  WARNING   ##
+#################
+
+Due to the XIQ location Hierarchy, not all elements of the tree-node for rf-domain CPC can be used.
+The 4 tree-node elements are - country, region, city, and campus
+XIQ only allows 2 Site-Groups and requires a Site.
+The location elements in WiNG are:
+  Country: USA
+  Region: South Carolina
+  City: Chapin
+  Campus: Stoney Pointe
+
+Please select one of the following: 
+1. Combine 2 of the tree-node elements
+2. Remove one of the tree-node elements
+3. Remove all tree-node elements (requires a site to be added)
+Please enter 1 - 3:
+```
+These options allow the script to take the 4 elements down to the 3 elements allowed in XIQ.
+1.  This allows you to select 2 of the tree-node elements and combine them.
+```
+ Which tree-nodes would you like to combine?
+
+Please select one of the following: 
+1, Country and Region
+2. Region and City
+3. City and Campus
+Please enter 1 - 3: 
+```
+2. This allows you to remove 1 of the tree-node elements.
+```
+Which tree-nodes would you like to remove?
+
+Please select one of the following: 
+1, Country: USA
+2. Region: South Carolina
+3. City: Chapin
+4. Campus: Stoney Pointe
+```
+3. This allows you to completely ignore the tree-node and create the script's default "Site-{{rf-domain name}}" Site.
+
 Once this process completes a message will be displayed with the collected number of rf-domains and devices.
 
 Then you can preview what the hierarchy will look like in XIQ. You can choose to view this or not. If you view it, you will have the option to cancel the script before anything is created in XIQ.
@@ -52,8 +98,8 @@ Once proceeding to create in XIQ you will be asked for your XIQ login credential
 > NOTE: you can by pass this section by entering a valid API Token to line 18 of the XIQ_wing_migrate.py script
 >  - if the added token isn't valid you will see the script fail to gather location tree info with a HTTP Status Code: 401
 ### messages
-As locations, buildings, and floors are created, messages will appear in the terminal window. If a location exists with the same name a message will be displayed that the locations was found and will be used. 
-> NOTE: XIQ requires that each location and building have their own unique name. Floors within a building also have to have their own unique name.
+As Site Groups, Sites, buildings, and floors are created, messages will appear in the terminal window. If a location exists with the same name a message will be displayed that the locations was found and will be used. 
+> NOTE: XIQ requires that each Site Group, Site, and building have their own unique name. Floors within a building also have to have their own unique name.
 
 ### flags
 There are 2 optional flags that can be added to the script when running.

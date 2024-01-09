@@ -12,13 +12,13 @@ parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir) 
 from requests.exceptions import HTTPError
 from app.mapImportLogger import logger
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = logging.getLogger('MapImporter.xiq_exporter')
 
 PATH = current_dir
 
-loc_count = 0
-tic = 0
 
 class XIQ:
     def __init__(self, user_name=None, password=None, token=None):
@@ -99,11 +99,14 @@ class XIQ:
             raise SystemExit
         if 'error' in response:
             if response['error_mssage']:
-                log_msg = (f"Status Code {response['error_id']}: {response['error_message']}")
-                logger.error(log_msg)
-                print(f"API Failed {info} with reason: {log_msg}")
-                print("Script is exiting...")
-                raise SystemExit
+                if 'duplicate' in response['error_message']:
+                    return response
+                else:
+                    log_msg = (f"Status Code {response['error_id']}: {response['error_message']}")
+                    logger.error(log_msg)
+                    print(f"API Failed {info} with reason: {log_msg}")
+                    print("Script is exiting...")
+                    raise SystemExit
         return response
     
     def __setup_put_api_call(self, info, url, payload=''):
@@ -135,7 +138,7 @@ class XIQ:
 
     def __get_api_call(self, url):
         try:
-            response = requests.get(url, headers= self.headers, proxies=self.proxyDict)
+            response = requests.get(url, headers= self.headers, verify=False, proxies=self.proxyDict)
         except HTTPError as http_err:
             logger.error(f'HTTP error occurred: {http_err} - on API {url}')
             raise ValueError(f'HTTP error occurred: {http_err}') 
@@ -164,7 +167,7 @@ class XIQ:
 
     def __post_api_call(self, url, payload):
         try:
-            response = requests.post(url, headers= self.headers, data=payload, proxies=self.proxyDict)
+            response = requests.post(url, headers= self.headers, data=payload, verify=False, proxies=self.proxyDict)
         except HTTPError as http_err:
             logger.error(f'HTTP error occurred: {http_err} - on API {url}')
             raise ValueError(f'HTTP error occurred: {http_err}') 
@@ -183,6 +186,8 @@ class XIQ:
                 logger.warning(f"\t\t{response.text}")
             else:
                 if 'error_message' in data:
+                    if 'duplicate' in data['error_message']:
+                        return data
                     logger.warning(f"\t\t{data['error_message']}")
                     raise Exception(data['error_message'])
             raise ValueError(log_msg)
@@ -198,7 +203,7 @@ class XIQ:
             if payload:
                 response = requests.put(url, headers= self.headers, data=payload, proxies=self.proxyDict)
             else:
-                response = requests.put(url, headers= self.headers, proxies=self.proxyDict)
+                response = requests.put(url, headers= self.headers, verify=False, proxies=self.proxyDict)
         except HTTPError as http_err:
             logger.error(f'HTTP error occurred: {http_err} - on API {url}')
             raise ValueError(f'HTTP error occurred: {http_err}') 
@@ -225,7 +230,7 @@ class XIQ:
         headers = self.headers.copy()
         del headers['Content-Type']
         try:
-            response = requests.post(url, headers= headers, files=files, proxies=self.proxyDict)
+            response = requests.post(url, headers= headers, files=files, verify=False, proxies=self.proxyDict)
         except HTTPError as http_err:
             logger.error(f'HTTP error occurred: {http_err} - on API {url}')
             raise ValueError(f'HTTP error occurred: {http_err}') 
@@ -304,34 +309,6 @@ class XIQ:
             self.viqName = data['name']
             self.viqID = data['id']
 
-
-    #BUILDINGS
-    def __buildLocationDf(self, location, pname = 'Global'):
-        global loc_count
-        loc_count += 1
-        toc = time.perf_counter()
-        print(f'{toc - tic:0.1f}', end='\r')
-        sys.stdout.flush()
-        if 'parent_id' not in location:
-            temp_df = pd.DataFrame([{'id': location['id'], 'name':location['name'], 'type': 'Global', 'parent':pname}])
-            self.locationTree_df = pd.concat([self.locationTree_df, temp_df], ignore_index=True)
-        else:
-            temp_df = pd.DataFrame([{'id': location['id'], 'name':location['name'], 'type': location['type'], 'parent':pname}])
-            self.locationTree_df = pd.concat([self.locationTree_df, temp_df], ignore_index=True)
-        if location['type'] == 'Location':
-            url = "{}/locations/tree?parentId={}&expandChildren=false".format(self.URL,location['id'])
-            location['children'] = self.__setup_get_api_call("gather child for {}".format(location['name']),url)
-        elif location['type'] == "BUILDING":
-            url = "{}/locations/tree?parentId={}&expandChildren=true".format(self.URL,location['id'])
-            location['children'] = self.__setup_get_api_call("gather child for {}".format(location['name']),url)
-        r = json.dumps(location['children'])
-        #print(r)
-        if location['children']:
-            parent_name = location['name']
-            for child in location['children']:
-                self.__buildLocationDf(child, pname=parent_name)
-
-
     ## EXTERNAL FUNCTION
 
     #ACCOUNT SWITCH
@@ -400,11 +377,9 @@ class XIQ:
         
 
     # LOCATIONS
+
     def gatherLocations(self):
-        global loc_count
-        global tic
-        tic = time.perf_counter()
-        info=f"gather location tree"
+        info=f"gather global location"
         url = "{}/locations/tree?expandChildren=false".format(self.URL)
         response = self.__setup_get_api_call(info,url)
         for location in response:
@@ -412,25 +387,67 @@ class XIQ:
             url = "{}/locations/tree?parentId={}&expandChildren=false".format(self.URL,global_id)
             child_response = self.__setup_get_api_call(info,url)
             location['children'] = child_response
-            self.__buildLocationDf(location)
-        logger.info("Collected Location Tree in {} API calls.".format(loc_count))
-        return (self.locationTree_df)
+        return response
+    
+    def gatherChildren(self, loc_id):
+        info=f"gather global location"
+        url = "{}/locations/tree?parentId={}&expandChildren=false".format(self.URL,loc_id)
+        child_response = self.__setup_get_api_call(info,url)
+        return child_response
 
     def createLocation(self, location_name, data):
         info=f"create location {location_name}"
         url = "{}/locations".format(self.URL)
         payload = json.dumps(data)
         response = self.__setup_post_api_call(info,url,payload)
+        if 'error_message' in response:
+            return 'Duplicate_Name'
         return response['id']
-
-
+    
+    #SITES
+    def checkSite(self,name):
+        site_id = 0
+        found = False
+        info = f"check for site {name}"
+        url = f"{self.URL}/locations/site?name={name}"
+        response = self.__setup_get_api_call(info,url)
+        if 'total_count' in response:
+            if response['total_count'] == 1:
+                site_id = response['data'][0]['id']
+                found = True
+        return found, site_id
+     
+    def createSite(self, site_name, data):
+        info=f"create site {site_name}"
+        url = "{}/locations/site".format(self.URL)
+        payload = json.dumps(data)
+        response = self.__setup_post_api_call(info,url,payload)
+        if 'error_message' in response:
+            return 'Duplicate_Name'
+        return response['id']
     
     #BUILDINGS
+    def checkBuilding(self, name):
+        building_id = 0
+        found = False
+        info = f"check for building {name}"
+        url = f"{self.URL}/locations/building?name={name}"
+        response = self.__setup_get_api_call(info,url)
+        if 'total_count' in response:
+            if response['total_count'] == 1:
+                building_id = response['data'][0]['id']
+                found = True
+        return found, building_id
+
+
+
     def createBuilding(self, data):
         info=f"create building {data['name']}"
         url = "{}/locations/building".format(self.URL)
         payload = json.dumps(data)
         response = self.__setup_post_api_call(info, url, payload)
+        if 'error_message' in response:
+            return 'Duplicate_Name'
         return response['id']
 
     #FLOORS
@@ -464,11 +481,31 @@ class XIQ:
         else:
             logger.info(f"Successfully uploaded {filename}")
 
+    def checkFloor(self, name, parent_id):
+        floor_id = 0
+        found = False
+        info = f"check for floor {name}"
+        url = f"{self.URL}/locations/floor?name={name}"
+        response = self.__setup_get_api_call(info,url)
+        if 'total_count' in response:
+            for floor in response['data']:
+                if floor['parent_id'] == int(parent_id):
+                    floor_id = floor['id']
+                    found = True
+                    break
+        return found, floor_id
+    
     def createFloor(self, data):
         info=f"create floor {data['name']}"
         url = "{}/locations/floor".format(self.URL)
         payload = json.dumps(data)
         response = self.__setup_post_api_call(info,url,payload)
+        if 'error_message' in response:
+            if 'duplicate' in response['error_message']:
+                return 'Duplicate_Name'
+            else:
+                print(f"Error creating floor {data['name']}")
+                return 0
         return response['id']
 
     #APS

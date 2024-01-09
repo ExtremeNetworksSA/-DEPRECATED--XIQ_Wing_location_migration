@@ -2,11 +2,13 @@ Value geo_coor (-?\d{2}\.\d+\s-?\d{2,3}\.\d+)
 Value area (.*?)
 Value List floors (.*?)
 Value locationTree (.*?)
+Value countryCode (\w\w)
 
 
 
 Start
   ^\sgeo-coordinates\s${geo_coor}s*$$
+  ^\scountry-code\s${countryCode}s*$$
   ^\slayout\sarea\s${area}\sfloor\s?${floors}\s\d+\description.*s*$$
   ^\slayout\sarea\s${area}\sfloor\s?${floors}\s\d+\smap-location.*s*$$
   ^\slayout\sarea\s${area}\sfloor\s?${floors}\s\d+s*$$
