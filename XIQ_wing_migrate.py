@@ -140,9 +140,10 @@ def locationCreationLoop(location_tree, country_code):
                     if parent_dir['type'] != "Site_Group":
                         print(f"{parent_dir['name']} already exists, but it is not a Site Group!")
                         loc_id = createLocLoop(loc_id, location_tree[i])
-                    print(f"Location {parent_dir['name']} was found in XIQ.")
-                    children = x.gatherChildren(parent_dir['id'])
-                    loc_id = parent_dir['id']
+                    else:
+                        print(f"Location {parent_dir['name']} was found in XIQ.")
+                        children = x.gatherChildren(parent_dir['id'])
+                        loc_id = parent_dir['id']
                 else:
                     loc_id = createLocLoop(loc_id, location_tree[i])
         return site_id
