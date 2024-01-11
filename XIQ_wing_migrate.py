@@ -11,11 +11,14 @@ import pandas as pd
 from app.Wing_importer import Wing
 from app.mapImportLogger import logger
 from app.xiq_exporter import XIQ
+
 current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 logger = logging.getLogger('MapImporter.Main')
 
 geoApiKey = ''
 XIQ_API_token = ''
+
+pageSize = '100'
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--external',action="store_true", help="Optional - adds External Account selection, to create floorplans and APs on external VIQ")
@@ -61,34 +64,92 @@ def checkNameLength(name, type):
         name = input(f"Please enter a new name for the {type} that is less than 32 characters: ")
     return name
 
-def locationCreationLoop(location_tree,location_id):
-    global sublocation_df
-    global location_df
-    for location_name in location_tree:
-        location_name = checkNameLength(location_name, type='location')
-        if location_name not in sublocation_df['name'].unique():
-            location_data = {"parent_id": f"{location_id}", "name": location_name}
-            location_id = x.createLocation(location_name, location_data)
-            if location_id != 0:
-                log_msg = (f"Location {location_name} was successfully created.")
-                location_df = pd.concat([location_df, pd.DataFrame([{'id': location_id, 'name': location_name, 'type': 'Location'}])])
-                sublocation_df = pd.concat([sublocation_df, pd.DataFrame([{'id': location_id, 'name': location_name, 'type': 'Location'}])])
-                sys.stdout.write(GREEN)
-                sys.stdout.write(log_msg+'\n\n')
-                sys.stdout.write(RESET)
-                logger.info(log_msg)
-            else:
-                log_msg = f"Failed to create location {location_name}"
-                sys.stdout.write(RED)
-                sys.stdout.write(log_msg + "\n")
-                sys.stdout.write(RESET)
-                logger.error(log_msg)
-                return ValueError("Error in location creation loop.")
+def createSiteLoop(parent_id, site_name, country_code):
+    valid_site = False
+    while not valid_site:
+        site_name = checkNameLength(site_name, 'Site')
+        data = {"parent_id": parent_id,
+                "name": site_name,
+                "country_code": country_code
+                }
+        site_id = x.createSite(site_name,data)
+        if site_id != 'Duplicate_Name':
+            valid_site = True
         else:
-            filt = location_df['name'] == location_name
-            location_id = location_df.loc[filt,'id'].values[0]
-            print(f"Location {location_name} was found.. id is {location_id}\n")
-    return location_id
+            print(f"{site_name} already exists. XIQ requires a unique name.")
+            site_name = input(f"Please enter a name for the site: ")
+    log_msg = f"Site {site_name} was created successfully."
+    sys.stdout.write(GREEN)
+    sys.stdout.write(log_msg + "\n\n")
+    sys.stdout.write(RESET)
+    sys.stdout.flush()
+    logger.info(log_msg)
+    return site_id
+
+def createLocLoop(parent_id, loc_name):
+    valid_loc = False
+    while not valid_loc:
+        loc_name = checkNameLength(loc_name, 'Site Group')
+        data = {"parent_id": parent_id,
+                "name": loc_name}
+        loc_id = x.createLocation(loc_name,data)
+        if loc_id != 'Duplicate_Name':
+            valid_loc = True
+        else:
+            print(f"{loc_name} already exists. XIQ requires a unique name.")
+            loc_name = input(f"Please enter a name for the Site Group: ")
+    log_msg = f"Site Group {loc_name} was created successfully."
+    sys.stdout.write(GREEN)
+    sys.stdout.write(log_msg + "\n\n")
+    sys.stdout.write(RESET)
+    sys.stdout.flush()
+    logger.info(log_msg)
+    return loc_id
+
+def locationCreationLoop(location_tree, country_code):
+    if len(location_tree) == 1:
+        if not any(d['name'] == location_tree[0] for d in global_location_dic[0]['children']):
+            global_site_id = global_location_dic[0]['id']
+            site_name = location_tree[0]
+            site_id = createSiteLoop(global_site_id, site_name, country_code)
+            return site_id
+        else:
+            for location in global_location_dic[0]['children']:
+                if location['name'] == location_tree[0]:
+                    if location['type'] != 'SITE':
+                        print(f"{location_tree[0]} already exists as a {location['type']}. XIQ requires a building to be part of a site. ")
+                        site_name = input(f"Please enter a new name for the site: ")
+                        site_group_id = location['id']
+                        site_id = createSiteLoop(site_group_id, site_name, country_code)
+                        return site_id
+                    else:
+                        site_id = location['id']
+                        print(f"found site {location['name']} - {site_id}")
+                        return site_id
+    else:
+        count = len(location_tree)
+        site_number = count -1
+        loc_id = global_location_dic[0]['id']
+        children = global_location_dic[0]['children']
+        for i in range(0, count,1):
+            if i == site_number:
+                site_id = createSiteLoop(loc_id, location_tree[i], country_code)
+            else:
+                if any(d['name'] == location_tree[i] for d in children):
+                    parent_dir = next(item for item in children if item["name"] == location_tree[i] )
+                    if parent_dir['type'] != "Site_Group":
+                        print(f"{parent_dir['name']} already exists, but it is not a Site Group!")
+                        loc_id = createLocLoop(loc_id, location_tree[i])
+                    else:
+                        print(f"Location {parent_dir['name']} was found in XIQ.")
+                        children = x.gatherChildren(parent_dir['id'])
+                        loc_id = parent_dir['id']
+                else:
+                    loc_id = createLocLoop(loc_id, location_tree[i])
+        return site_id
+
+
+    
 #MAIN
 
 
@@ -182,17 +243,11 @@ if args.external:
                     x.switchAccount(newViqID, newViqName)
 
 xiq_building_exist = False
-print("Starting to collect locations ")
+print("Starting to collect locations... ", end='')
 sys.stdout.flush()
-location_df = x.gatherLocations()
+global_location_dic = x.gatherLocations()
 print("Complete")
-print(f"Collected {len(location_df.index)} Location/Building/Floor elements")
 sys.stdout.flush()
-filt = location_df['type'] == 'BUILDING'
-building_df = location_df.loc[filt]
-filt = location_df['type'] == 'Location'
-sublocation_df = location_df.loc[filt]
-
 
 # Check Building
 if rawData['building']:
@@ -201,10 +256,10 @@ if rawData['building']:
             log_msg = (f"no floors were found for building {building['name']}. Skipping creation of building")
             logger.info(log_msg)
             continue
-        if building['name'] in building_df['name'].unique():
-            xiq_building_exist = True
-            filt = location_df['name'] == building['name']
-            building_id = location_df.loc[filt, 'id'].values[0]
+        
+        # Check if building exists
+        xiq_building_exist, building_id = x.checkBuilding(building['name'])
+        if xiq_building_exist:
             building['xiq_building_id'] = str(building_id)
             log_msg = (f"Building {building['name']} already exists! The Script will attempt to add Floors and APs to this building")
             logger.critical(log_msg)
@@ -212,33 +267,55 @@ if rawData['building']:
             sys.stdout.write(log_msg + "\n\n")
             sys.stdout.write(RESET)
             sys.stdout.flush()
-
         else:
-            data = building.copy()
-            filt = location_df['type'] == 'Global'
-            location_id = location_df.loc[filt, 'id'].values[0]
-            parent_name = location_df.loc[filt, 'name'].values[0]
-            if building['location_tree']:
-                try:
-                    location_id = locationCreationLoop(building['location_tree'],location_id)
-                except ValueError as e:
-                    sys.stdout.write(YELLOW)
-                    sys.stdout.write(f"{e} {building['name']} will be placed under the Global view.")
+            # Check if site exists
+            site_name = building['location_tree'][-1]
+            xiq_site_exist, site_id = x.checkSite(site_name)
+            if xiq_site_exist:
+                data = building.copy()
+                del data['building_id']
+                del data['country_code']
+                del data['xiq_building_id']
+                if not data['address']:
+                    data['address'] = {
+                            "address": "Unknown",
+                            "city": "Unknown",
+                            "state": "Unknown",
+                            "postal_code": "Unknown"
+                        }
+                data['parent_id'] = f"{site_id}"
+                building['xiq_building_id'] = x.createBuilding(data)
+                if building['xiq_building_id'] != 0:
+                    log_msg = f"Building {building['name']} was successfully created."
+                    sys.stdout.write(GREEN)
+                    sys.stdout.write(log_msg+'\n\n')
                     sys.stdout.write(RESET)
                     sys.stdout.flush()
-            del data['building_id']
-            del data['xiq_building_id']
-            if not data['address'].strip():
-                data['address'] = 'Unknown Address'
-            data['parent_id'] = f"{location_id}"
-            building['xiq_building_id'] = x.createBuilding(data)
-            if building['xiq_building_id'] != 0:
-                log_msg = f"Building {building['name']} was successfully created."
-                sys.stdout.write(GREEN)
-                sys.stdout.write(log_msg+'\n\n')
-                sys.stdout.write(RESET)
-                sys.stdout.flush()
-                logger.info(log_msg)
+                    logger.info(log_msg)
+            else:
+                # Check/create heirarchy    
+                site_id = locationCreationLoop(building['location_tree'],building['country_code'])  
+                # Create Building 
+                data = building.copy()
+                del data['building_id']
+                del data['xiq_building_id']
+                del data['country_code']
+                if not data['address']:
+                    data['address'] = {
+                            "address": "Unknown",
+                            "city": "Unknown",
+                            "state": "Unknown",
+                            "postal_code": "Unknown"
+                        }
+                data['parent_id'] = f"{site_id}"
+                building['xiq_building_id'] = x.createBuilding(data)
+                if building['xiq_building_id'] != 0:
+                    log_msg = f"Building {building['name']} was successfully created."
+                    sys.stdout.write(GREEN)
+                    sys.stdout.write(log_msg+'\n\n')
+                    sys.stdout.write(RESET)
+                    sys.stdout.flush()
+                    logger.info(log_msg)
 
 
 # Create Floor(s)
@@ -256,17 +333,15 @@ for floor in rawData['floors']:
     xiq_building_id = wing_building_df.loc[filt, 'xiq_building_id'].values[0]
     building_name = wing_building_df.loc[filt, 'name'].values[0]
     #check if floor exists
-    filt = (location_df['type'] == 'FLOOR') & (location_df['parent'] == building_name)
-    floor_df = location_df.loc[filt]
-    if floor['name'] in floor_df['name'].unique():
+    xiq_floor_exist, floor_id = x.checkFloor(floor['name'], xiq_building_id)
+    if xiq_floor_exist:
+        floor['xiq_floor_id'] = str(floor_id)
         log_msg = f"There is already a floor with the name {floor['name']} in building {building_name}"
-        logger.info(log_msg)
+        logger.critical(log_msg)
         sys.stdout.write(YELLOW)
-        sys.stdout.write(log_msg+'\n')
+        sys.stdout.write(log_msg + "\n")
         sys.stdout.write(RESET)
         sys.stdout.flush()
-        filt = floor_df['name'] == floor['name']
-        floor['xiq_floor_id'] = floor_df.loc[filt, 'id'].values[0]
         continue
     data = floor.copy()
     del data['associated_building_id']

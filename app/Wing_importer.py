@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-#from audioop import reverse
-#from nis import match
-#from operator import ge
 import tarfile
 import json
 import os
@@ -19,7 +16,7 @@ import pandas as pd
 import numpy as np
 from tracemalloc import start
 import textfsm
-from pprint import pprint
+from pprint import pprint as pp
 current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir) 
@@ -46,11 +43,97 @@ class Wing:
         self.projectFolder = f"{PATH}/project"
         if os.path.exists(self.projectFolder) and os.path.isdir(self.projectFolder):
             shutil.rmtree(self.projectFolder)
+
+        self.cc_df = pd.read_csv(f"{PATH}/cc_map.csv")
         
 
-    def __convertToDict(self, lst):
-        res_dct = {lst[i]: lst[i + 1] for i in range(0, len(lst), 2)}
-        return res_dct
+    def __convertToDict(self, lst, domain):
+        temp_list = lst.copy()
+        temp_list.pop(0)
+        temp_list = temp_list[::2]
+        if len(temp_list) > 3:
+            temp_dct = {lst[i]: lst[i + 1] for i in range(0, len(lst), 2)}
+            temp_dct = self.__hierarchyChallenge(temp_dct, domain)
+            temp_list = []
+            for value in temp_dct.values():
+                temp_list.append(value)
+        return temp_list
+    
+    def __validResponse(self, options, count):
+        validResponse = False
+        while validResponse != True:
+            print("\nPlease select one of the following: ")
+            for option in options:
+                print(option)
+            selection = input(f"Please enter 1 - {count}: ")
+            try:
+               selection = int(selection)  
+            except:
+                print("Please enter a valid response!!\n")
+                continue
+            if 0 < selection <= count:
+                 validResponse = True
+        return selection
+
+    def __hierarchyChallenge(self, loc_dic, domain):
+        print("\n\n#################")
+        print("###  WARNING   ##")
+        print("#################\n")
+        print(f"Due to the XIQ location Hierarchy, not all elements of the tree-node for rf-domain {domain} can be used.")
+        print("The 4 tree-node elements are - country, region, city, and campus")
+        print("XIQ only allows 2 Site-Groups and requires a Site.")
+        print("The location elements in WiNG are:")
+        print(f"  Country: {loc_dic['country']}\n"
+            f"  Region: {loc_dic['region']}\n"
+            f"  City: {loc_dic['city']}\n"
+            f"  Campus: {loc_dic['campus']}")
+        options = [ "1. Combine 2 of the tree-node elements",
+        "2. Remove one of the tree-node elements",
+        "3. Remove all tree-node elements (requires a site to be added)"
+        ]
+        selection = self.__validResponse(options, 3)
+
+        if selection == 1:
+            print("Which tree-nodes would you like to combine?")
+            options = [ "1, Country and Region",
+            "2. Region and City",
+            "3. City and Campus"
+            ]
+            combine_selection = self.__validResponse(options, 3)
+            if combine_selection == 1:
+                loc_dic['country'] = loc_dic['country'] + ' ' + loc_dic['region']
+                del loc_dic['region']
+            elif combine_selection == 2:
+                loc_dic['region'] = loc_dic['region'] + ' ' + loc_dic['city']
+                del loc_dic['city']
+            elif combine_selection == 1:
+                loc_dic['city'] = loc_dic['city'] + ' ' + loc_dic['campus']
+                del loc_dic['campus']
+
+        elif selection == 2:
+            print("Which tree-nodes would you like to remove?")
+            options = [ f"1, Country: {loc_dic['country']}",
+            f"2. Region: {loc_dic['region']}",
+            f"3. City: {loc_dic['city']}",
+            f"4. Campus: {loc_dic['campus']}"
+            ]
+            remove_selection = self.__validResponse(options, 4)
+            if remove_selection == 1:
+                del loc_dic['country']
+            elif remove_selection == 2:
+                del loc_dic['region']
+            elif remove_selection == 3:
+                del loc_dic['city']
+            elif remove_selection == 4:
+                del loc_dic['campus']
+
+        elif selection == 3:
+            del loc_dic['country']
+            del loc_dic['region']
+            del loc_dic['city']
+            loc_dic['campus'] = f"Site-{domain}"
+
+        return(loc_dic)
 
     def __addressFromGeoCoor(self, lat_coor, long_coor):
         url = f"https://revgeocode.search.hereapi.com/v1/revgeocode?at={lat_coor},{long_coor}&apikey={self.apiKey}"
@@ -68,16 +151,25 @@ class Wing:
                 log_msg = f"Error - HTTP Status Code: {str(response.status_code)}"
                 logger.warning(f"\t\t{response.text}")
             else:
-                log_msg = "Reverse Geo cooridinates API failed with error: " + data['error']
+                log_msg = "Reverse Geo coordinates API failed with error: " + data['error']
             raise ValueError(log_msg)  
         try:
             data = response.json()
         except json.JSONDecodeError:
             logger.error(f"Unable to parse json data - {url} - HTTP Status Code: {str(response.status_code)}")
             raise ValueError("Unable to parse the data from json, script cannot proceed")
-        address = (data['items'][0]['address']['label'])
+        address = (f"{data['items'][0]['address']['houseNumber']} {data['items'][0]['address']['street']}")
+        city = (data['items'][0]['address']['city'])
+        state = (data['items'][0]['address']['stateCode'])
+        postal_code= (data['items'][0]['address']['postalCode'])
+        address_dic = {
+            "address": address,
+            "city": city,
+            "state": state,
+            "postal_code": postal_code
+        }
         sys.stdout.flush()
-        return address
+        return address_dic
 
     def __getRfDomainInfo(self):
         #domain info
@@ -93,11 +185,12 @@ class Wing:
                 data['name'] =  domain
                 if data['locationTree']:
                     items = shlex.split(data['locationTree'])
-                    loc_dic = self.__convertToDict(items)
-                    data.update(loc_dic)
-                del data['locationTree']    
+                    loc_dic = self.__convertToDict(items, domain)
+                    data['locationTree'] = loc_dic
+                else:
+                    data['locationTree'] = ["Site-" + domain]
             except IndexError:
-                data = {'name': domain, 'floors': []}
+                data = {'name': domain, 'locationTree': ["Site-" + domain], 'floors': []}
             if 'geo_coor' in data:
                 if self.geo_coords:
                     lat_coor, long_coor = data['geo_coor'].split()
@@ -107,22 +200,51 @@ class Wing:
                         logger.error(e)
                         print(f"\n{e} trying to get address for rf-domain {data['name']}\nContinuing to gather data....", end='')
                         logger.error(f"Address import failed. 'Unknown Address' will be used for {data['name']}")
-                        address = 'Unknown Address'
+                        address = {
+                            "address": "Unknown",
+                            "city": "Unknown",
+                            "state": "Unknown",
+                            "postal_code": "Unknown"
+                        }
                     except:
                         log_msg = (f"Unknown error occurred with reverse Geo coordinates API with rf-domain {data['name']}")
                         logger.error(log_msg)
                         print(f"{log_msg}\nContinuing to gather data....", end='')
                         logger.error(f"Address import failed. 'Unknown Address' will be used.")
-                        address = 'Unknown Address'
+                        address = {
+                            "address": "Unknown",
+                            "city": "Unknown",
+                            "state": "Unknown",
+                            "postal_code": "Unknown"
+                        }
                 else:
                     logger.warning(f"No API key was found for geo coordinates. Geo coordinates cannot be changed to physical address for rf-domain {data['name']}")
                     print("\nNo API key was found for geo coordinates to do reverse geo coordinates. If you would like to get building addresses in XIQ from the geo coordinates please add an API key for platform.here.com")
                     print("More information can be found in the readme.md file.\nContinuing to gather data....", end='')
-                    address = 'Unknown Address'
+                    address = {
+                        "address": "Unknown",
+                        "city": "Unknown",
+                        "state": "Unknown",
+                        "postal_code": "Unknown"
+                    }
             else:
-                address = 'Unknown Address'
+                address = {
+                    "address": "Unknown",
+                    "city": "Unknown",
+                    "state": "Unknown",
+                    "postal_code": "Unknown"
+                }
 
             data['address'] = address
+            
+            # change Country ISO to County Code - uses CSV file cc_map.csv
+            filt = self.cc_df['ISO'] == data['countryCode']
+            cc =  "Unknown" if pd.isna(self.cc_df.loc[filt,'CODE'].values[0]) else int(self.cc_df.loc[filt,'CODE'].values[0])
+            if cc is "Unknown":
+                logger.error(f"{data['name']}'s country ISO was not found. Defaulting to US 840. You can change later if needed.")
+                data['countryCode'] = 840
+            else:
+                data['countryCode'] = cc
             domain_data.append(data)
         return(domain_data)
 
@@ -177,10 +299,6 @@ class Wing:
         #pprint(data)
         
         self.domain_df = pd.DataFrame(data)
-        location_list = ['country', 'region', 'city', 'campus']
-        for location in location_list:
-            if location not in self.domain_df.columns:
-                self.domain_df[location] = np.nan
         #create an empty location id column
         self.domain_df['parent'] = np.nan
         #print(self.domain_df)
@@ -234,8 +352,6 @@ class Wing:
         self.ap_df = pd.DataFrame(ap_data)
         #print(self.ap_df)
 
-   
-        
         #Create Location dictionary and validate location info
         location_df = pd.DataFrame(columns= ['type', 'name', 'parent', 'child'])
         for index,row in self.domain_df.iterrows():
@@ -243,39 +359,44 @@ class Wing:
                 logger.warning(f"No APs were found in rf-domain {row['name']}. This rf-domain will not be created in XIQ")
                 continue
             if isinstance(row['floors'], list):
-                location_list = ['country', 'region', 'city', 'campus']
-                location_list = [i for i in location_list if pd.notna(row[i])]
-                for i in range(len(location_list)):
+                location_list = row['locationTree']
+                count = len(location_list)
+                for i in range(count):
+                    if i == count-1:
+                        type = 'Site'
+                    else:
+                        type = 'Site Group'
                     if i == 0:
                         parent = 'Global'
                     else:
-                        parent = row[location_list[i-1]]
+                        parent = location_list[i-1]
                     if i == len(location_list)-1:
                         child = 'rf-domain'
                     else:
-                        child = row[location_list[i+1]]
-                    if row[location_list[i]] in location_df['name'].unique():
-                        filt = (location_df['name'] == row[location_list[i]])
+                        child = location_list[i+1]
+                    name = location_list[i]
+                    if location_list[i] in location_df['name'].unique():
+                        filt = (location_df['name'] == location_list[i])
                         matchLocation = location_df.loc[filt]
                         if len(matchLocation) == 1:
                             if child == matchLocation['child'].values[0] and parent != matchLocation['parent'].values[0]:
-                                logger.warning(f"fixing locations in rf-domain {row['name']} - changing {location_list[i-1]} from {row[location_list[i-1]]} to {matchLocation['parent'].values[0]}")
-                                row[location_list[i-1]] = matchLocation['parent'].values[0]
+                                logger.warning(f"fixing locations in rf-domain {row['name']} - changing {location_list[i-1]} from {location_list[i-1]} to {matchLocation['parent'].values[0]}")
+                                parent = matchLocation['parent'].values[0]
                             elif child != matchLocation['child'].values[0] and parent != matchLocation['parent'].values[0]:
-                                row[location_list[i]] = f"{row[location_list[i]]}_{row[location_list[i-1]]}"
-                                row[location_list[i]] = row[location_list[i]].replace(" ", "")
+                                name = f"{location_list[i]}_{location_list[i-1]}"
+                                name = name.replace(" ", "")
                                 if len(row[location_list[i]]) > 32:
-                                    row[location_list[i]] = row[location_list[i]][0:31]
-                                logger.warning(f"Changing name of location in rf-domain {row['name']} due to the name being used for another location. New name is {row[location_list[i]]}")
+                                    name = name[0:31]
+                                logger.warning(f"Changing name of location in rf-domain {row['name']} due to the name being used for another location. New name is {name}")
 
                         else:
                             logger.error(f"Fatal Error with Locations in {row['name']} removing all locations for rf-domain {row['name']}")
                             row['parent'] = 'Global'
                     else:
-                        temp_df = pd.DataFrame([{'type': location_list[i], 'name': row[location_list[i]], 'parent': parent, 'child': child}])
+                        temp_df = pd.DataFrame([{'type': type, 'name': name, 'parent': parent, 'child': child}])
                         location_df = pd.concat([location_df, temp_df], ignore_index=True)
                 if location_list:
-                    row['parent'] = row[location_list[-1]]
+                    row['parent'] = location_list[-1]
                 else:
                     row['parent'] = 'Global'
                 self.domain_df.loc[index] = row
@@ -283,7 +404,7 @@ class Wing:
 
        
         
-        #Build data for API calls and data for printscreen
+        #Build data for API calls and data for print screen
         self.wingData = {'building':[],'floors':[],'aps':[]}
         output_data = {}
         for index,row in self.domain_df.iterrows():
@@ -309,6 +430,7 @@ class Wing:
                     "name": row['name'],
                     'address': row['address'],
                     'location_tree': list(reversed(location_tree)),
+                    'country_code': row['countryCode'],
                     'building_id': str(building_id),
                     'xiq_building_id': None
                     }
