@@ -23,6 +23,7 @@ pageSize = '100'
 parser = argparse.ArgumentParser()
 parser.add_argument('--external',action="store_true", help="Optional - adds External Account selection, to create floorplans and APs on external VIQ")
 parser.add_argument('--noaplog',action="store_true", help="Optional - removes logs for APs that don't have a floor assigned")
+parser.add_argument('--nogeolog',action="store_true", help="Optional - removes logs for no GEO API key when creating locations")
 args = parser.parse_args()
 
 PATH = current_dir
@@ -160,7 +161,7 @@ filename = filename.replace("'", "")
 
 print("Gathering Wing Data.... ", end='')
 sys.stdout.flush()
-x = Wing(filename, APNoFloorLogging= not args.noaplog, geoApiKey=geoApiKey)
+x = Wing(filename, APNoFloorLogging= not args.noaplog, GEOAPILogging= not args.nogeolog, geoApiKey=geoApiKey)
 try:
     rawData, output_preview = x.exportFile()
 except ValueError as e:

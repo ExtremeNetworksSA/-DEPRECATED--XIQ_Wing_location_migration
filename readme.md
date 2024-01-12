@@ -96,7 +96,7 @@ As Site Groups, Sites, buildings, and floors are created, messages will appear i
 > NOTE: XIQ requires that each Site Group, Site, and building have their own unique name. Floors within a building also have to have their own unique name.
 
 ### flags
-There are 2 optional flags that can be added to the script when running.
+There are 3 optional flags that can be added to the script when running.
 ```
 --external
 ```
@@ -105,6 +105,10 @@ This flag will allow you to create the locations and assign the devices to locat
 --noaplog
 ```
 This flag will suppress the log messages that are normally created when devices do not have a floor assigned to them in their config. If you typically do not assign a floor to the device the log file could fill up with warning messages about APs not being set to a floor and the script assigning them to 'floor1'.
+```
+--nogeolog
+```
+This flag will suppress the geo messages to the prompt & log file.
 
 ## requirements
 There are additional modules that need to be installed in order for this script to function. They are listed in the requirements.txt file and can be installed with the command 'pip install -r requirements.txt' if using pip.

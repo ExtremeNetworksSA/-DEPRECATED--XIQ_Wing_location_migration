@@ -32,9 +32,10 @@ PATH = current_dir
 os.environ["NET_TEXTFSM"]='{}/templates/'.format(PATH)
 
 class Wing:
-    def __init__(self, filename, APNoFloorLogging=True, geoApiKey = ''):
+    def __init__(self, filename, APNoFloorLogging=True, GEOAPILogging=True, geoApiKey = ''):
         self.filename = filename
         self.APNoFloorLogging = APNoFloorLogging
+        self.GEOAPILogging = GEOAPILogging
         if geoApiKey:
             self.apiKey = geoApiKey
             self.geo_coords = True
@@ -190,7 +191,7 @@ class Wing:
                 else:
                     data['locationTree'] = ["Site-" + domain]
             except IndexError:
-                data = {'name': domain, 'locationTree': ["Site-" + domain], 'floors': []}
+                data = {'name': domain, 'locationTree': ["Site-" + domain], 'floors': [], 'countryCode':'us'}
             if 'geo_coor' in data:
                 if self.geo_coords:
                     lat_coor, long_coor = data['geo_coor'].split()
@@ -218,9 +219,10 @@ class Wing:
                             "postal_code": "Unknown"
                         }
                 else:
-                    logger.warning(f"No API key was found for geo coordinates. Geo coordinates cannot be changed to physical address for rf-domain {data['name']}")
-                    print("\nNo API key was found for geo coordinates to do reverse geo coordinates. If you would like to get building addresses in XIQ from the geo coordinates please add an API key for platform.here.com")
-                    print("More information can be found in the readme.md file.\nContinuing to gather data....", end='')
+                    if self.GEOAPILogging == True:
+                        logger.warning(f"No API key was found for geo coordinates. Geo coordinates cannot be changed to physical address for rf-domain {data['name']}")
+                        print("\nNo API key was found for geo coordinates to do reverse geo coordinates. If you would like to get building addresses in XIQ from the geo coordinates please add an API key for platform.here.com")
+                        print("More information can be found in the readme.md file.\nContinuing to gather data....", end='')
                     address = {
                         "address": "Unknown",
                         "city": "Unknown",
@@ -240,7 +242,7 @@ class Wing:
             # change Country ISO to County Code - uses CSV file cc_map.csv
             filt = self.cc_df['ISO'] == data['countryCode']
             cc =  "Unknown" if pd.isna(self.cc_df.loc[filt,'CODE'].values[0]) else int(self.cc_df.loc[filt,'CODE'].values[0])
-            if cc is "Unknown":
+            if cc == "Unknown":
                 logger.error(f"{data['name']}'s country ISO was not found. Defaulting to US 840. You can change later if needed.")
                 data['countryCode'] = 840
             else:
