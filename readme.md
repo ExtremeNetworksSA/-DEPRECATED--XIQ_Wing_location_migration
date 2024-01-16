@@ -14,7 +14,7 @@ Each rf-domain will be created as a building element in XIQ. Any floors configur
 
 ### Devices
 
-The script will search for all devices pulled from the config in the XIQ instance logged into by the mac address. If the mac address is found within the XIQ instance the location will be updated to a floor within the assigned rf-domain of the device. If the device config contains the floor it will be placed in that floor, (the script will create that floor in the rf-domain if it doesn't exist already). If there is no floor in the device config it will be added to the first floor the script finds in the rf-domain. If the rf-domain has no floors, as stated, 'floor1' will be created and all devices added to that floor.
+The script will pull all devices from XIQ that do not have a location set. If the mac addresses of those devices are found in the tech dump files, the AP will be moved to the floor assigned in WiNG, of floor of the rf-domain determined by the script. If the devices are not found in the tech dump file, a message will be displayed that the device has no location set but was not found in the tech dump. 
 
 ### Geo Coordinates
 
@@ -91,11 +91,11 @@ Then you can preview what the hierarchy will look like in XIQ. You can choose to
 Once proceeding to create in XIQ you will be asked for your XIQ login credentials.
 > NOTE: you can by pass this section by entering a valid API Token to line 18 of the XIQ_wing_migrate.py script
 >  - if the added token isn't valid you will see the script fail to gather location tree info with a HTTP Status Code: 401
-### messages
+### Messages
 As Site Groups, Sites, buildings, and floors are created, messages will appear in the terminal window. If a location exists with the same name a message will be displayed that the locations was found and will be used. 
 > NOTE: XIQ requires that each Site Group, Site, and building have their own unique name. Floors within a building also have to have their own unique name.
 
-### flags
+### Flags
 There are 3 optional flags that can be added to the script when running.
 ```
 --external
@@ -110,5 +110,5 @@ This flag will suppress the log messages that are normally created when devices 
 ```
 This flag will suppress the geo messages to the prompt & log file.
 
-## requirements
+## Requirements
 There are additional modules that need to be installed in order for this script to function. They are listed in the requirements.txt file and can be installed with the command 'pip install -r requirements.txt' if using pip.

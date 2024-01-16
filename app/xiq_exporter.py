@@ -77,11 +77,11 @@ class XIQ:
                 raise SystemExit
         return response
         
-    def __setup_post_api_call(self, info, url, payload):
+    def __setup_post_api_call(self, info, url, payload, res=True):
         success = 0
         for count in range(1, self.totalretries):
             try:
-                response = self.__post_api_call(url=url, payload=payload)
+                response = self.__post_api_call(url=url, payload=payload, res=res)
             except ValueError as e:
                 print(f"API to {info} failed attempt {count} of {self.totalretries} with {e}")
             except Exception as e:
@@ -165,7 +165,7 @@ class XIQ:
             raise ValueError("Unable to parse the data from json, script cannot proceed")
         return data
 
-    def __post_api_call(self, url, payload):
+    def __post_api_call(self, url, payload, res=True):
         try:
             response = requests.post(url, headers= self.headers, data=payload, verify=False, proxies=self.proxyDict)
         except HTTPError as http_err:
@@ -176,6 +176,8 @@ class XIQ:
             logger.error(log_msg)
             raise ValueError(log_msg)
         if response.status_code == 202:
+            return "Success"
+        elif response.status_code == 201:
             return "Success"
         elif response.status_code != 200:
             log_msg = f"Error - HTTP Status Code: {str(response.status_code)}"
@@ -191,12 +193,16 @@ class XIQ:
                     logger.warning(f"\t\t{data['error_message']}")
                     raise Exception(data['error_message'])
             raise ValueError(log_msg)
-        try:
-            data = response.json()
-        except json.JSONDecodeError:
-            logger.error(f"Unable to parse json data - {url} - HTTP Status Code: {str(response.status_code)}")
-            raise ValueError("Unable to parse the data from json, script cannot proceed")
-        return data
+        else:
+            if res:
+                try:
+                    data = response.json()
+                except json.JSONDecodeError:
+                    logger.error(f"Unable to parse json data - {url} - HTTP Status Code: {str(response.status_code)}")
+                    raise ValueError("Unable to parse the data from json, script cannot proceed")
+                return data
+            else:
+                return "Success" 
     
     def __put_api_call(self, url, payload=''):
         try:
@@ -481,6 +487,34 @@ class XIQ:
         else:
             logger.info(f"Successfully uploaded {filename}")
 
+    def getFloorsOfBuilding(self, rfd_name):
+        floors = {}
+        errors =[]
+        info = "gathering floors"
+        url = self.URL + '/locations/building?name=' + rfd_name
+        rawList = self.__setup_get_api_call(info,url)
+        if rawList['total_count'] == 0:
+            error_msg = (f"No building was found with the name {rfd_name}")
+            errors.append(error_msg)
+        elif rawList['total_count'] > 1:
+            error_msg = (f"Multiple buildings found with the name {rfd_name}")
+            errors.append(error_msg)
+        else:
+            if len(rawList['data']) != 1:
+                error_msg = (f"Multiple buildings found with the name {rfd_name}")
+                errors.append(error_msg)
+            else:
+                floors = self._gatherFloorList(info, rawList['data'][0]['id'])
+                return floors
+        if errors:
+            floors['errors'] = errors
+        return floors
+
+    def _gatherFloorList(self, info, bld_id):
+        url = self.URL + '/locations/tree?parentId=' + str(bld_id) + '&expandChildren=false' 
+        rawList = self.__setup_get_api_call(info,url)
+        return rawList
+    
     def checkFloor(self, name, parent_id):
         floor_id = 0
         found = False
@@ -509,38 +543,46 @@ class XIQ:
         return response['id']
 
     #APS
-    def checkApsBySerial(self, listOfSerials):
-        info="check APs by Serial Number"
-        url = "{}/devices?limit=100&sns=".format(self.URL)
-        snurl = "&sns=".join(listOfSerials)
-        url = url + snurl
-        response = self.__setup_get_api_call(info, url)
-        return(response['data'])
+    def collectDevices(self, pageSize):
+        info = "collecting devices" 
+        page = 1
+        pageCount = 1
+        firstCall = True
+
+        devices = []
+        while page <= pageCount:
+            url = self.URL + "/devices?page=" + str(page) + "&limit=" + str(pageSize) + "&nullField=LOCATION_ID"
+            rawList = self.__setup_get_api_call(info,url)
+            devices = devices + rawList['data']
+
+            if firstCall == True:
+                pageCount = rawList['total_pages']
+            print(f"completed page {page} of {rawList['total_pages']} collecting Devices")
+            page = rawList['page'] + 1 
+        return devices
     
-    def checkApsByMac(self, listOfMacs):
-        info="check APs by MacAddress"
-        url = "{}/devices?limit=100&macAddresses=".format(self.URL)
-        snurl = "&macAddresses=".join(listOfMacs)
-        url = url + snurl
-        response = self.__setup_get_api_call(info, url)
-        return(response['data'])
-
-    def onboardAps(self, data):
-        info="onboard APs"
-        url = "{}/devices/:onboard".format(self.URL)
+    def changeAPLocation(self, data):
+        info="set location for APs " 
         payload = json.dumps(data)
-        response = self.__setup_post_api_call(info,url,payload)
+        url = f"{self.URL}/devices/location/:assign"
+        response = self.__setup_post_api_call(info,url,payload=payload, res=False)
         return response
 
-    def renameAP(self, ap_id, name):
-        info="rename AP {}".format(ap_id)
-        url = f"{self.URL}/devices/{ap_id}/hostname?hostname={name}"
-        response = self.__setup_put_api_call(info,url)
-        return response
+    ## CCG
+    def collectCCG(self,pageSize):
+        info = "collecting CCGs" 
+        page = 1
+        pageCount = 1
+        firstCall = True
 
-    def changeAPLocation(self, ap_id, data):
-        info="set location for AP {}".format(ap_id)
-        payload = json.dumps(data)
-        url = f"{self.URL}/devices/{ap_id}/location"
-        response = self.__setup_put_api_call(info,url,payload=payload)
-        return response
+        ccg_info = []
+        while page <= pageCount:
+            url = self.URL + "/ccgs?page=" + str(page) + "&limit=" + str(pageSize)
+            rawList = self.__setup_get_api_call(info,url)
+            ccg_info = ccg_info + rawList['data']
+
+            if firstCall == True:
+                pageCount = rawList['total_pages']
+            print(f"completed page {page} of {rawList['total_pages']} collecting ccg_info")
+            page = rawList['page'] + 1 
+        return ccg_info

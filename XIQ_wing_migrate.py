@@ -336,7 +336,7 @@ for floor in rawData['floors']:
     #check if floor exists
     xiq_floor_exist, floor_id = x.checkFloor(floor['name'], xiq_building_id)
     if xiq_floor_exist:
-        floor['xiq_floor_id'] = str(floor_id)
+        floor['xiq_floor_id'] = floor_id
         log_msg = f"There is already a floor with the name {floor['name']} in building {building_name}"
         logger.critical(log_msg)
         sys.stdout.write(YELLOW)
@@ -358,77 +358,105 @@ for floor in rawData['floors']:
         sys.stdout.flush()
         logger.info(log_msg)
 
-# ADD APS TO FLOORS
+
+print("Collecting Devices...")
+# Get AP info from tech Dump
 wing_floor_df = pd.DataFrame(rawData['floors'])
+wing_floor_df.set_index('xiq_floor_id',inplace=True)
 wing_ap_df = pd.DataFrame(rawData['aps'])
+
 # change location_id to xiq_floor_id
 listOfFloors = list(wing_ap_df['location_id'].unique())
 for floor_id in listOfFloors:
     filt = wing_floor_df['floor_id'] == floor_id
-    xiq_id = (wing_floor_df.loc[filt,'xiq_floor_id'].values[0])
+    xiq_id = (wing_floor_df.loc[filt].index[0])
     wing_ap_df = wing_ap_df.replace({'location_id':{floor_id : str(xiq_id)}})
-#get list of mac addresses
-listOfMacs = list(wing_ap_df['mac'].dropna().unique())
 
-# Batch mac addresses
-displayCount = False
-sizeofbatch = 100
-if len(listOfMacs) > sizeofbatch:
-    print("\nThis script will work in batches of 100 APs.\n")
-    displayCount = True
+# Get AP info from XIQ
+device_data = x.collectDevices(pageSize)
+device_df = pd.DataFrame(device_data)
+device_df.set_index('id',inplace=True)
+if len(device_df.index) == 0:
+    print("\nNo devices were found without locations set")
+    print("script is exiting...")
+    raise SystemExit
+print(f"\nFound {len(device_df.index)} Devices without locations")
 
 
-apsToConfigure = []
-for i in range(0, len(listOfMacs),sizeofbatch):
-    batch = listOfMacs[i:i+sizeofbatch]
-    cleanBatch = listOfMacs[i:i+sizeofbatch]
-    apMacFound = False
-    if displayCount == True:
-        print(f"Checking for APs {i}-{i+sizeofbatch} of {len(listOfMacs)}")
-        sys.stdout.flush()
-    # check if they exist 
-    existingAps = x.checkApsByMac(batch)
-    for ap in existingAps:
-        batch = list(filter(lambda a: a != ap['mac_address'], batch))
-        updateApWithId(ap)
-    foundAPs = [i for i in cleanBatch if i not in batch]
-    apsToConfigure.extend(foundAPs)
-    for ap_mac in batch:
-        filt = wing_ap_df['mac'] == ap_mac
-        offline_ap = wing_ap_df.loc[filt,'name'].values[0]
-        logger.error(f"Device {offline_ap} ({ap_mac}) was not found in XIQ")
 
-if apsToConfigure:
-    print(f"Starting to move {len(apsToConfigure)} out of the {len(rawData['aps'])} APs that were found in this XIQ instance.")
-    # Batching for messages
-    sizeofbatch = 100
-    for i in range(0, len(apsToConfigure), sizeofbatch):
-        if displayCount == True:
-            print(f"Moving APs {i}-{i+sizeofbatch} of {len(apsToConfigure)}")
-            sys.stdout.flush()
-        batch = apsToConfigure[i:i+sizeofbatch]
-        for ap_mac in batch:
-            filt = wing_ap_df['mac'] == ap_mac
-            ap_df = wing_ap_df[filt]
-            data = {
-                "location_id" : ap_df['location_id'].values[0],
-                "x" : int(ap_df['x'].values[0]),
-                "y" : int(ap_df['y'].values[0]),
-                "latitude": 0,
-                "longitude": 0
-            }
-            response = x.changeAPLocation(ap_df['xiq_id'].values[0], data)
-            if response != "Success":
-                log_msg = (f"Failed to set location of {ap_df['xiq_id'].values[0]}")
-                sys.stdout.write(RED)
-                sys.stdout.write(log_msg + "\n")
-                sys.stdout.write(RESET)
-                logging.error(log_msg)
+print("Collecting CCGs...")
+## Collect CCGs
+ccg_data = x.collectCCG(pageSize)
+#pp(ccg_data)
+ccg_df = pd.DataFrame(columns = ['device_id', 'ccg_id', 'ccg_name'])
+for ccg in ccg_data:
+    if ccg['device_ids']:
+        for device_id in ccg['device_ids']:
+            ccg_df = pd.concat([ccg_df,pd.DataFrame([{'device_id': device_id, 'ccg_id': ccg['id'], 'ccg_name': ccg['name']}])])
+#ccg_df = pd.DataFrame(ccg_data)
+ccg_df.set_index('device_id',inplace=True)
+
+set_location = {}
+for device_id in device_df.index.tolist():
+    if device_df.loc[device_id,'hostname'] in wing_ap_df['name'].unique():
+        sys.stdout.write(RED)
+        if device_id not in ccg_df.index.tolist():
+            log_msg = (f"device {device_df.loc[device_id,'hostname']} is not associated with a Cloud Config Group!!")
+            logger.critical(log_msg)
+            print(log_msg)
+        else:
+            ccg_name = ccg_df.loc[device_id, 'ccg_name']
+            if not isinstance(ccg_name, str):
+                log_msg = (f"Device {device_df.loc[device_id,'hostname']} is in multiple Cloud Config Groups!!")
+                logger.critical(log_msg)
+                print(log_msg)
             else:
-                logger.info(f"Set location for {ap_df['name'].values[0]}")
-    print("Finished moving APs and placing them")
-else:
-    sys.stdout.write(YELLOW)
-    sys.stdout.write("No AP mac addresses were found in the XIQ instance.\n")
+                if "RFD-" not in ccg_name:
+                    log_msg = (f"Device {device_df.loc[device_id,'hostname']} is in CCG '{ccg_name}' which is not an WiNG RFD created CCG!!")
+                    logger.critical(log_msg)
+                    print(log_msg)
+                else:
+                    rfd_name = ccg_name.replace("RFD-","")
+                    rfd_floor = x.getFloorsOfBuilding(rfd_name)
+                    if 'errors' in rfd_floor:
+                        errors = ", ".join(rfd_floor['errors'])
+                        log_msg = (f"Can't move device {device_df.loc[device_id,'hostname']}. {errors}")
+                        logger.critical(log_msg)
+                        print(log_msg)
+                    elif len(rfd_floor) == 0:
+                        log_msg = (f"Can't move device {device_df.loc[device_id,'hostname']}. There is not a building with the name '{rfd_name}'!!")
+                        logger.critical(log_msg)
+                        print(log_msg)
+                    else:
+                        sys.stdout.write(GREEN)
+                        if device_df.loc[device_id,'hostname'] in wing_ap_df['name'].unique():
+                            filt = wing_ap_df['name'] == device_df.loc[device_id,'hostname']
+                            floor_id = wing_ap_df.loc[filt,'location_id'].values[0]
+                            floor = {'id': floor_id, "name": wing_floor_df.loc[int(floor_id),'name']}
+                        else:
+                            floor = rfd_floor[-1]  
+                        log_msg = (f"Device {device_df.loc[device_id,'hostname']} will be added to {rfd_name} on floor '{floor['name']}'")
+                        logger.info(log_msg)
+                        print(log_msg)
+                        if rfd_name not in set_location:
+                            set_location[rfd_name] = {"devices":{"ids":[device_id]},"device_location":{"location_id":floor['id'],"x":0,"y":0,"latitude":0,"longitude":0}}
+                        else:
+                            set_location[rfd_name]["devices"]["ids"].append(device_id)
+    else:
+        sys.stdout.write(YELLOW)
+        log_msg = f"Device {device_df.loc[device_id,'hostname']} has no location set but was not found in this Tech Dump."
+        logger.warning(log_msg)
+        print(log_msg)
+
     sys.stdout.write(RESET)
-#pprint(rawData)
+
+move_device_count = 0
+for rfd in set_location:
+    print(f"Moving APs to {rfd}...", end="")
+    response = x.changeAPLocation(set_location[rfd])
+    print(response)
+    device_count = len(set_location[rfd]['devices'])
+    print(f"Moved {device_count} APs to {rfd}")
+    move_device_count += device_count
+
+print(f"\n{move_device_count} out of {len(device_df.index)} were moved to the correct locations.")

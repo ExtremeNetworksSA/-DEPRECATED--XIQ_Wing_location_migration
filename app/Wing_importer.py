@@ -306,7 +306,7 @@ class Wing:
         #print(self.domain_df)
 
 
-
+        # Collect AP data from tech dump
         ap_data = []
         ap_info = re.findall(r"(\w{2}\d{3,4}\s(\S{2}-){5}\S{2}.*?)!", self.startupContent, re.DOTALL)
         for ap in ap_info:
@@ -353,7 +353,7 @@ class Wing:
         # Create dataframe of AP data
         self.ap_df = pd.DataFrame(ap_data)
         #print(self.ap_df)
-
+        
         #Create Location dictionary and validate location info
         location_df = pd.DataFrame(columns= ['type', 'name', 'parent', 'child'])
         for index,row in self.domain_df.iterrows():
