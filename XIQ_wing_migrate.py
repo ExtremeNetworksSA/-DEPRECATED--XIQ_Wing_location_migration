@@ -271,8 +271,15 @@ if rawData['building']:
         else:
             # Check if site exists
             site_name = building['location_tree'][-1]
-            xiq_site_exist, site_id = x.checkSite(site_name)
+            xiq_site_exist, xiq_site_update, site_id = x.checkSite(site_name)
             if xiq_site_exist:
+                if xiq_site_update:
+                    site_id = x.updateSite(site_name, building['country_code'])
+                    log_msg = f"Site {site_name} is missing required country code, updated site with country code {building['country_code']}\n"
+                    logger.info(log_msg)
+                    sys.stdout.write(YELLOW)
+                    sys.stdout.write(log_msg)
+                    sys.stdout.write(RESET)
                 data = building.copy()
                 del data['building_id']
                 del data['country_code']

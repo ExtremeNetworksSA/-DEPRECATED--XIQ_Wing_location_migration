@@ -30,6 +30,7 @@ class XIQ:
         }
         self.totalretries = 5
         self.locationTree_df = pd.DataFrame(columns = ['id', 'name', 'type', 'parent'])
+        self.site = {}
         if token:
             self.headers["Authorization"] = "Bearer " + token
         else:
@@ -207,7 +208,7 @@ class XIQ:
     def __put_api_call(self, url, payload=''):
         try:
             if payload:
-                response = requests.put(url, headers= self.headers, data=payload, proxies=self.proxyDict)
+                response = requests.put(url, headers= self.headers, data=payload, verify=False, proxies=self.proxyDict)
             else:
                 response = requests.put(url, headers= self.headers, verify=False, proxies=self.proxyDict)
         except HTTPError as http_err:
@@ -230,7 +231,8 @@ class XIQ:
                     logger.warning(f"\t\t{data['error_message']}")
                     raise Exception(data['error_message'])
                 raise ValueError(log_msg)
-        return response.status_code
+        else:
+            return response.status_code
 
     def __image_api_call(self, url, files):
         headers = self.headers.copy()
@@ -414,14 +416,18 @@ class XIQ:
     def checkSite(self,name):
         site_id = 0
         found = False
+        update = False
         info = f"check for site {name}"
         url = f"{self.URL}/locations/site?name={name}"
         response = self.__setup_get_api_call(info,url)
         if 'total_count' in response:
             if response['total_count'] == 1:
+                if 'country_code' not in response['data'][0]:
+                    update = True
+                    self.site = response['data'][0]
                 site_id = response['data'][0]['id']
                 found = True
-        return found, site_id
+        return found, update, site_id
      
     def createSite(self, site_name, data):
         info=f"create site {site_name}"
@@ -432,6 +438,28 @@ class XIQ:
             return 'Duplicate_Name'
         return response['id']
     
+    def updateSite(self, site_name, country_code):
+        info=f"update site {site_name}"
+        if site_name != self.site['name']:
+            log_msg = f"Site {site_name} was passed to be updated but doesn't match site data {self.site['name']}"
+            logger.error(log_msg)
+            print(log_msg)
+            print('script is exiting...')
+            raise SystemExit
+        else:
+            site_id = self.site['id']
+            url = "{}/locations/site/{}".format(self.URL, str(site_id))
+            self.site['country_code'] = country_code
+            del self.site['create_time']
+            del self.site['update_time']
+            del self.site['org_id']
+            del self.site['unique_name']
+            del self.site['type']
+            del self.site['id']
+            payload = json.dumps(self.site)
+            response = self.__setup_put_api_call(info, url, payload)
+            return site_id
+
     #BUILDINGS
     def checkBuilding(self, name):
         building_id = 0
