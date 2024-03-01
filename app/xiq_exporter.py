@@ -225,7 +225,8 @@ class XIQ:
             try:
                 data = response.json()
             except json.JSONDecodeError:
-                logger.warning(f"\t\t{response.text}")
+                logger.error(f"Unable to parse json data - {url} - HTTP Status Code: {str(response.status_code)}")
+                raise ValueError("Unable to parse the data from json, script cannot proceed")
             else:
                 if 'error_message' in data:
                     logger.warning(f"\t\t{data['error_message']}")
@@ -421,12 +422,17 @@ class XIQ:
         url = f"{self.URL}/locations/site?name={name}"
         response = self.__setup_get_api_call(info,url)
         if 'total_count' in response:
-            if response['total_count'] == 1:
-                if 'country_code' not in response['data'][0]:
-                    update = True
-                    self.site = response['data'][0]
-                site_id = response['data'][0]['id']
-                found = True
+            for site in response['data']:
+                if name == site['name']:
+                    if 'country_code' not in site:
+                        update = True
+                        self.site = site
+                    elif site['country_code'] == 0:
+                        update = True
+                        self.site = site
+                    site_id = site['id']
+                    found = True
+                    break
         return found, update, site_id
      
     def createSite(self, site_name, data):
@@ -456,8 +462,10 @@ class XIQ:
             del self.site['unique_name']
             del self.site['type']
             del self.site['id']
+            if 'address' in self.site:
+                del self.site['address']
             payload = json.dumps(self.site)
-            response = self.__setup_put_api_call(info, url, payload)
+            response = self.__setup_put_api_call(info, url, payload=payload)
             return site_id
 
     #BUILDINGS
@@ -467,10 +475,13 @@ class XIQ:
         info = f"check for building {name}"
         url = f"{self.URL}/locations/building?name={name}"
         response = self.__setup_get_api_call(info,url)
-        if 'total_count' in response:
-            if response['total_count'] == 1:
-                building_id = response['data'][0]['id']
-                found = True
+        if 'total_count' in response:      
+            for building in response['data']:
+                if name == building['name']:
+                    building_id = building['id']
+                    found = True
+                    break
+            
         return found, building_id
 
 
@@ -481,7 +492,9 @@ class XIQ:
         payload = json.dumps(data)
         response = self.__setup_post_api_call(info, url, payload)
         if 'error_message' in response:
-            return 'Duplicate_Name'
+            print(f"API to {info} failed with {response['error_message']}")
+            print('script is exiting...')
+            raise SystemExit
         return response['id']
 
     #FLOORS

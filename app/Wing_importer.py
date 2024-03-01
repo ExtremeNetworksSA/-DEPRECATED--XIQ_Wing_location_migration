@@ -302,7 +302,7 @@ class Wing:
         
         self.domain_df = pd.DataFrame(data)
         #create an empty location id column
-        self.domain_df['parent'] = np.nan
+        self.domain_df['parent'] = None
         #print(self.domain_df)
 
 
@@ -398,11 +398,9 @@ class Wing:
                         temp_df = pd.DataFrame([{'type': type, 'name': name, 'parent': parent, 'child': child}])
                         location_df = pd.concat([location_df, temp_df], ignore_index=True)
                 if location_list:
-                    row['parent'] = location_list[-1]
+                    self.domain_df.loc[index,'parent'] = location_list[-1]
                 else:
-                    row['parent'] = 'Global'
-                self.domain_df.loc[index] = row
-        
+                    self.domain_df.loc[index,'parent'] = 'Global'
 
        
         

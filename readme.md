@@ -91,6 +91,9 @@ Then you can preview what the hierarchy will look like in XIQ. You can choose to
 Once proceeding to create in XIQ you will be asked for your XIQ login credentials.
 > NOTE: you can by pass this section by entering a valid API Token to line 18 of the XIQ_wing_migrate.py script
 >  - if the added token isn't valid you will see the script fail to gather location tree info with a HTTP Status Code: 401
+
+XIQ now requires that sites have a country code set. If the rf-domain(building) is to be created under an existing site that does not have a country code set, the script will update the sites country using the country code set in the rf-domain. 
+>NOTE: When the script runs this update, the address field will be wiped if anything is set.
 ### Messages
 As Site Groups, Sites, buildings, and floors are created, messages will appear in the terminal window. If a location exists with the same name a message will be displayed that the locations was found and will be used. 
 > NOTE: XIQ requires that each Site Group, Site, and building have their own unique name. Floors within a building also have to have their own unique name.

@@ -301,7 +301,7 @@ if rawData['building']:
                     sys.stdout.flush()
                     logger.info(log_msg)
             else:
-                # Check/create heirarchy    
+                # Check/create hierarchy    
                 site_id = locationCreationLoop(building['location_tree'],building['country_code'])  
                 # Create Building 
                 data = building.copy()
@@ -382,11 +382,11 @@ for floor_id in listOfFloors:
 # Get AP info from XIQ
 device_data = x.collectDevices(pageSize)
 device_df = pd.DataFrame(device_data)
-device_df.set_index('id',inplace=True)
 if len(device_df.index) == 0:
     print("\nNo devices were found without locations set")
     print("script is exiting...")
     raise SystemExit
+device_df.set_index('id',inplace=True)
 print(f"\nFound {len(device_df.index)} Devices without locations")
 
 
