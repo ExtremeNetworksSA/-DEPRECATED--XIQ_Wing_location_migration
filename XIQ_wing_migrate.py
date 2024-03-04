@@ -156,7 +156,7 @@ def locationCreationLoop(location_tree, country_code):
 
 ## Wing IMPORT
 filename = str(input("Please enter the Wing Tech-dump File: ")).strip()
-filename = filename.replace("\ ", " ")
+filename = filename.replace("\\ ", " ")
 filename = filename.replace("'", "")
 
 print("Gathering Wing Data.... ", end='')

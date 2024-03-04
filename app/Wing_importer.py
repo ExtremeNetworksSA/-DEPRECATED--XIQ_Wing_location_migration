@@ -387,7 +387,7 @@ class Wing:
                             elif child != matchLocation['child'].values[0] and parent != matchLocation['parent'].values[0]:
                                 name = f"{location_list[i]}_{location_list[i-1]}"
                                 name = name.replace(" ", "")
-                                if len(row[location_list[i]]) > 32:
+                                if len(name) > 32:
                                     name = name[0:31]
                                 logger.warning(f"Changing name of location in rf-domain {row['name']} due to the name being used for another location. New name is {name}")
 
