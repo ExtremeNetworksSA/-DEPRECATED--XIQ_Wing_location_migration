@@ -103,9 +103,9 @@ class XIQ:
                 if 'duplicate' in response['error_message']:
                     return response
                 else:
-                    log_msg = (f"Status Code {response['error_id']}: {response['error_message']}")
+                    log_msg = (f"Status Code {response['error_id']}: {response['error_message']} when trying to {info}")
                     logger.error(log_msg)
-                    print(f"API Failed {info} with reason: {log_msg}")
+                    print(f"API Failed {info} with reason: {log_msg} when trying to {info}")
                     print("Script is exiting...")
                     raise SystemExit
         return response
@@ -419,7 +419,7 @@ class XIQ:
         found = False
         update = False
         info = f"check for site {name}"
-        url = f"{self.URL}/locations/site?name={name}"
+        url = f"{self.URL}/locations/site?name={name}&order=ASC"
         response = self.__setup_get_api_call(info,url)
         if 'total_count' in response:
             for site in response['data']:
@@ -469,6 +469,24 @@ class XIQ:
             return site_id
 
     #BUILDINGS
+    def gatherExistingBuildings(self,pageSize):
+        info = "collecting buildings"
+        page = 1
+        pageCount = 1
+        firstCall = True
+        
+        buildings = []
+        while page <= pageCount:
+            url = f"{self.URL}/locations/building?page={page}&limit={pageSize}&order=ASC"
+            rawList = self.__setup_get_api_call(info,url)
+            buildings = buildings + rawList['data']
+
+            if firstCall == True:
+                pageCount = rawList['total_pages']
+            print(f"completed page {page} of {rawList['total_pages']} collecting buildings")
+            page = rawList['page'] + 1
+        return buildings
+    
     def checkBuilding(self, name):
         building_id = 0
         found = False
@@ -498,6 +516,24 @@ class XIQ:
         return response['id']
 
     #FLOORS
+    def gatherExistingFloors(self, pageSize):
+        info = "collecting floors"
+        page = 1
+        pageCount = 1
+        firstCall = True
+        
+        floors = []
+        while page <= pageCount:
+            url = f"{self.URL}/locations/floor?page={page}&limit={pageSize}&order=ASC"
+            rawList = self.__setup_get_api_call(info,url)
+            floors = floors + rawList['data']
+
+            if firstCall == True:
+                pageCount = rawList['total_pages']
+            print(f"completed page {page} of {rawList['total_pages']} collecting floors")
+            page = rawList['page'] + 1
+        return floors
+
     def uploadFloorplan(self, filename):
         info=f"upload {filename}"
         success = 0
@@ -531,27 +567,42 @@ class XIQ:
     def getFloorsOfBuilding(self, rfd_name):
         floors = {}
         errors =[]
+        found = False
         info = "gathering floors"
-        url = self.URL + '/locations/building?name=' + rfd_name
+        url = f'{self.URL}/locations/building?name={rfd_name}&order=ASC'
         rawList = self.__setup_get_api_call(info,url)
         if rawList['total_count'] == 0:
             error_msg = (f"No building was found with the name {rfd_name}")
             errors.append(error_msg)
         elif rawList['total_count'] > 1:
-            error_msg = (f"Multiple buildings found with the name {rfd_name}")
-            errors.append(error_msg)
+            # search for the actual building      
+            for building in rawList['data']:
+                if rfd_name == building['name']:
+                    building_id = building['id']
+                    found = True
+                    break
+            if not found:
+                error_msg = (f"Multiple buildings found containing the name {rfd_name} but not of them matched exactly.")
+                errors.append(error_msg)
         else:
             if len(rawList['data']) != 1:
                 error_msg = (f"Multiple buildings found with the name {rfd_name}")
                 errors.append(error_msg)
+                logger.critical(rawList['data'])
             else:
-                floors = self._gatherFloorList(info, rawList['data'][0]['id'])
-                return floors
+                building_id = rawList['data'][0]['id']
+                found = True
+        if found:
+            floors = self.__gatherFloorList(info, building_id)
+            return floors
+        else:
+            if not errors:
+                errors.append(f"Not able to query {rfd_name} from list of buildings")
         if errors:
             floors['errors'] = errors
         return floors
 
-    def _gatherFloorList(self, info, bld_id):
+    def __gatherFloorList(self, info, bld_id):
         url = self.URL + '/locations/tree?parentId=' + str(bld_id) + '&expandChildren=false' 
         rawList = self.__setup_get_api_call(info,url)
         return rawList
@@ -560,14 +611,12 @@ class XIQ:
         floor_id = 0
         found = False
         info = f"check for floor {name}"
-        url = f"{self.URL}/locations/floor?name={name}"
-        response = self.__setup_get_api_call(info,url)
-        if 'total_count' in response:
-            for floor in response['data']:
-                if floor['parent_id'] == int(parent_id):
-                    floor_id = floor['id']
-                    found = True
-                    break
+        floorList = self.__gatherFloorList(info, parent_id)
+        for floor in floorList:
+            if floor['name'].lower() == name.lower():
+                floor_id = floor['id']
+                found = True
+                break
         return found, floor_id
     
     def createFloor(self, data):
@@ -592,7 +641,7 @@ class XIQ:
 
         devices = []
         while page <= pageCount:
-            url = self.URL + "/devices?page=" + str(page) + "&limit=" + str(pageSize) + "&nullField=LOCATION_ID"
+            url = self.URL + "/devices?page=" + str(page) + "&limit=" + str(pageSize) + "&nullField=LOCATION_ID&order=ASC"
             rawList = self.__setup_get_api_call(info,url)
             devices = devices + rawList['data']
 
