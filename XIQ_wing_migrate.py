@@ -443,7 +443,7 @@ for floor in rawData['floors']:
     if floor['xiq_floor_id'] == 'Duplicate_Name':
         log_msg = (f"Floor {floor['name']} already exists under building {building_name} but the script failed to find it twice... Skipping floor.")
         logger.error(log_msg)
-        sys.stdout.write(GREEN)
+        sys.stdout.write(YELLOW)
         sys.stdout.write(log_msg+'\n\n')
         sys.stdout.write(RESET)
         sys.stdout.flush()
