@@ -411,7 +411,7 @@ class XIQ:
         response = self.__setup_post_api_call(info,url,payload)
         if 'error_message' in response:
             return 'Duplicate_Name'
-        return response['id']
+        return response
     
     #SITES
     def checkSite(self,name):
@@ -442,7 +442,7 @@ class XIQ:
         response = self.__setup_post_api_call(info,url,payload)
         if 'error_message' in response:
             return 'Duplicate_Name'
-        return response['id']
+        return response
     
     def updateSite(self, site_name, country_code):
         info=f"update site {site_name}"
@@ -513,7 +513,7 @@ class XIQ:
             print(f"API to {info} failed with {response['error_message']}")
             print('script is exiting...')
             raise SystemExit
-        return response['id']
+        return response
 
     #FLOORS
     def gatherExistingFloors(self, pageSize):
@@ -630,7 +630,7 @@ class XIQ:
             else:
                 print(f"Error creating floor {data['name']}")
                 return 0
-        return response['id']
+        return response
 
     #APS
     def collectDevices(self, pageSize):

@@ -1,7 +1,7 @@
 ## Information
 ### Needed files
 The XIQ_wing_migrate.py script uses several other files. If these files are missing the script will not function.
-In the same folder as the XIQ_wing_migrate.py script there should be an /app/ folder. Inside this folder should be a mapImportLogger.py, Wing_importer.py, xiq_exporter.py, cc_map.csv, and another folder called /templates/. After running the script a new file 'map_importer.log will be created. The templates folder should have 2 files - wing_apconfig.textfsm and wing_rfomain.textfsm.
+In the same folder as the XIQ_wing_migrate.py script there should be an /app/ folder. Inside this folder should be a mapImportLogger.py, Wing_importer.py, xiq_exporter.py, cc_map.csv, and another folder called /templates/. After running the script a new file 'map_importer.log will be created. The templates folder should have 2 files - wing_apconfig.textfsm and wing_rfdomain.textfsm.
 
 ### Location hierarchy
 The tree-node of the rf-domain will be used to build the location hierarchy. If there are 4 elements in the Treenode the script will prompt with options as XIQ only allows 3 level of hierarchy above a building. The lowest treenode element will be come the site, and any higher elements will be come site-groups (folders). If there is not a tree-node configured in the rf-domain the rf-domain (building). The script will create a site named "Site-{{rf_domain name}}", this site will be created at the global view level in XIQ. Otherwise the rf-domain will be created as a building in the location hierarchy from the treenode info. 

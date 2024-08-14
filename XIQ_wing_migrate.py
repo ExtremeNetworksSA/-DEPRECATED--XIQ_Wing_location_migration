@@ -8,6 +8,7 @@ import inspect
 import getpass
 import json
 import pandas as pd
+from pprint import pprint as pp
 from app.Wing_importer import Wing
 from app.mapImportLogger import logger
 from app.xiq_exporter import XIQ
@@ -73,8 +74,25 @@ def createSiteLoop(parent_id, site_name, country_code):
                 "name": site_name,
                 "country_code": country_code
                 }
-        site_id = x.createSite(site_name,data)
-        if site_id != 'Duplicate_Name':
+        site_added = False
+        new_site = x.createSite(site_name,data)
+        if new_site != 'Duplicate_Name':
+            site_id = new_site['id']
+            for location in global_location_dic:
+                if location['id'] == parent_id:
+                    location['children'].append(new_site)
+                    logger.info(f"Updated global_location_dic {location['name']} with child Site {new_site['name']}")
+                    site_added = True
+                    break
+                else:
+                    for child in location['children']:
+                        if child['id'] == parent_id:
+                            child['children'].append(new_site)
+                            logger.info(f"Updated global_location_dic {child['name']} with child Site {new_site['name']}")
+                            site_added = True
+                            break
+                    if site_added:
+                        break
             valid_site = True
         else:
             print(f"{site_name} already exists. XIQ requires a unique name.")
@@ -93,8 +111,16 @@ def createLocLoop(parent_id, loc_name):
         loc_name = checkNameLength(loc_name, 'Site Group')
         data = {"parent_id": parent_id,
                 "name": loc_name}
-        loc_id = x.createLocation(loc_name,data)
-        if loc_id != 'Duplicate_Name':
+        new_loc = x.createLocation(loc_name,data)
+        if new_loc != 'Duplicate_Name':
+            loc_id = new_loc['id']
+            for location in global_location_dic:
+                if location['id'] == parent_id:
+                    if new_loc['type'] == 'Site Group':
+                        new_loc['type'] = 'Site_Group'
+                        logger.info(f"Changing type of {new_loc['name']} to match location tree - 'Site_Group'")
+                    location['children'].append(new_loc)
+                    logger.info(f"Updated global_location_dic with Site_Group {new_loc['name']}")
             valid_loc = True
         else:
             print(f"{loc_name} already exists. XIQ requires a unique name.")
@@ -149,7 +175,27 @@ def locationCreationLoop(location_tree, country_code):
                     loc_id = createLocLoop(loc_id, location_tree[i])
         return site_id
 
+def gatherLocations():
+    print("Starting to collect root locations... ", end='')
+    sys.stdout.flush()
+    global_location_dic = x.gatherLocations()
+    print("Complete")
+    sys.stdout.flush()
+    return global_location_dic
 
+def gatherExistingBuildings():
+    print("\nStarting to collect all existing buildings... ")
+    sys.stdout.flush()
+    building_df = pd.DataFrame(x.gatherExistingBuildings(pageSize))
+    return building_df
+
+def gatherExistingFloors():
+    print("\n Starting to collect all existing floors....")
+    sys.stdout.flush()
+    floor_df = pd.DataFrame(x.gatherExistingFloors(pageSize))
+    if 'parent_id' in floor_df:
+        floor_df['parent_id'] = floor_df['parent_id'].apply(lambda x: str(x)) 
+    return floor_df
     
 #MAIN
 
@@ -243,21 +289,18 @@ if args.external:
                     newViqName = (accounts_df.loc[int(selection),'name'])
                     x.switchAccount(newViqID, newViqName)
 
-print("Starting to collect root locations... ", end='')
-sys.stdout.flush()
-global_location_dic = x.gatherLocations()
-print("Complete")
-sys.stdout.flush()
+global_location_dic = gatherLocations()
+if len(global_location_dic) == 0:
+    log_msg = "No Generic location found"
+    logger.error(log_msg)
+    sys.stdout.write(RED)
+    sys.stdout.write(f"{log_msg}. Please log into the GUI and create an orginization under 'planning'.\n")
+    sys.stdout.write("script is exiting...\n")
+    sys.stdout.write(RESET)
+    raise SystemExit
+building_df = gatherExistingBuildings()
 
-print("\nStarting to collect all existing buildings... ")
-sys.stdout.flush()
-building_df = pd.DataFrame(x.gatherExistingBuildings(pageSize))
-
-print("\n Starting to collect all existing floors....")
-sys.stdout.flush()
-floor_df = pd.DataFrame(x.gatherExistingFloors(pageSize))
-floor_df['parent_id'] = floor_df['parent_id'].apply(lambda x: str(x))
-
+floor_df = gatherExistingFloors()
 
 # Check Building
 if rawData['building']:
@@ -269,7 +312,9 @@ if rawData['building']:
             continue
         
         # Check if building exists
-        if building['name'] in building_df['name'].to_list():
+        if 'name' not in building_df:
+            xiq_building_exist = False
+        elif building['name'] in building_df['name'].to_list():
             xiq_building_exist = True
             filt = building_df['name'] == building['name']
             building_id = building_df.loc[filt,'id'].values[0]
@@ -303,7 +348,8 @@ if rawData['building']:
                             "postal_code": "Unknown"
                         }
                 data['parent_id'] = f"{site_id}"
-                building['xiq_building_id'] = x.createBuilding(data)
+                building_response = x.createBuilding(data)
+                building['xiq_building_id'] = building_response['id']
                 if building['xiq_building_id'] != 0:
                     log_msg = f"Building {building['name']} was successfully created."
                     sys.stdout.write(GREEN)
@@ -311,6 +357,9 @@ if rawData['building']:
                     sys.stdout.write(RESET)
                     sys.stdout.flush()
                     logger.info(log_msg)
+                    new_building_row = pd.DataFrame([building_response])
+                    building_df = pd.concat([building_df, new_building_row], axis=0, ignore_index=True)
+                    logger.info(f"Added {building_response['name']} to building_df")
             else:
                 # Check/create hierarchy    
                 site_id = locationCreationLoop(building['location_tree'],building['country_code'])  
@@ -327,7 +376,8 @@ if rawData['building']:
                             "postal_code": "Unknown"
                         }
                 data['parent_id'] = f"{site_id}"
-                building['xiq_building_id'] = x.createBuilding(data)
+                building_response = x.createBuilding(data)
+                building['xiq_building_id'] = building_response['id']
                 if building['xiq_building_id'] != 0:
                     log_msg = f"Building {building['name']} was successfully created."
                     sys.stdout.write(GREEN)
@@ -335,6 +385,9 @@ if rawData['building']:
                     sys.stdout.write(RESET)
                     sys.stdout.flush()
                     logger.info(log_msg)
+                    new_building_row = pd.DataFrame([building_response])
+                    building_df = pd.concat([building_df, new_building_row], axis=0, ignore_index=True)
+                    logger.info(f"Added {building_response['name']} to building_df")
 
 
 # Create Floor(s)
@@ -352,9 +405,9 @@ for floor in rawData['floors']:
     filt = wing_building_df['building_id'] == floor['associated_building_id']
     xiq_building_id = wing_building_df.loc[filt, 'xiq_building_id'].values[0]
     building_name = wing_building_df.loc[filt, 'name'].values[0]
-    
-    #check if floor exists
-    if floor['name'] in floor_df['name'].to_list() and xiq_building_id in floor_df['parent_id'].to_list():         
+    if 'name' not in floor_df: # no FLoors exist
+        xiq_floor_exist = False 
+    elif floor['name'] in floor_df['name'].to_list() and xiq_building_id in floor_df['parent_id'].to_list():    
             filt = (floor_df['name'] == floor['name']) & (floor_df['parent_id'] == xiq_building_id)
             floor_id = floor_df.loc[filt,'id']
             if floor_id.any():
@@ -364,19 +417,28 @@ for floor in rawData['floors']:
                 # floor may exist but case doesn't match x.checkFloor will check for this
                 found, floor_id = x.checkFloor(floor['name'], xiq_building_id)
                 if found:
-                    xiq_floor_exist = True       
+                    xiq_floor_exist = True 
+    else:
+        #check if floor exists
+        found, floor_id = x.checkFloor(floor['name'], xiq_building_id)
+        if found:
+            xiq_floor_exist = True
+        
     if xiq_floor_exist:
         floor['xiq_floor_id'] = floor_id
         log_msg = f"There is already a floor with the name {floor['name']} in building {building_name}"
         logger.warning(log_msg)
         sys.stdout.flush()
         continue
+    # else create floor
     data = floor.copy()
     del data['associated_building_id']
     del data['floor_id']
     del data['xiq_floor_id']
     data['parent_id'] = str(xiq_building_id)
-    floor['xiq_floor_id'] = x.createFloor(data)
+    floor_response = x.createFloor(data)
+    floor['xiq_floor_id'] = floor_response['id']
+  #  floor_df = gatherExistingFloors()
     # check for duplicate name - should not be returned as we look for this 2 different ways
     if floor['xiq_floor_id'] == 'Duplicate_Name':
         log_msg = (f"Floor {floor['name']} already exists under building {building_name} but the script failed to find it twice... Skipping floor.")
@@ -393,6 +455,9 @@ for floor in rawData['floors']:
         sys.stdout.write(log_msg+'\n\n')
         sys.stdout.write(RESET)
         sys.stdout.flush()
+        new_floor_row = pd.DataFrame([floor_response])
+        floor_df = pd.concat([floor_df, new_floor_row], axis=0, ignore_index=True)
+        logger.info(f"Added {floor_response['name']} from building {building_name} to floor_df")
 
 
 print("Collecting Devices...")
