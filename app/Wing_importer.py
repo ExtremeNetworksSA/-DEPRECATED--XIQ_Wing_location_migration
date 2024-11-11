@@ -52,12 +52,6 @@ class Wing:
         temp_list = lst.copy()
         temp_list.pop(0)
         temp_list = temp_list[::2]
-        if len(temp_list) > 3:
-            temp_dct = {lst[i]: lst[i + 1] for i in range(0, len(lst), 2)}
-            temp_dct = self.__hierarchyChallenge(temp_dct, domain)
-            temp_list = []
-            for value in temp_dct.values():
-                temp_list.append(value)
         return temp_list
     
     def __validResponse(self, options, count):
@@ -75,66 +69,6 @@ class Wing:
             if 0 < selection <= count:
                  validResponse = True
         return selection
-
-    def __hierarchyChallenge(self, loc_dic, domain):
-        print("\n\n#################")
-        print("###  WARNING   ##")
-        print("#################\n")
-        print(f"Due to the XIQ location Hierarchy, not all elements of the tree-node for rf-domain {domain} can be used.")
-        print("The 4 tree-node elements are - country, region, city, and campus")
-        print("XIQ only allows 2 Site-Groups and requires a Site.")
-        print("The location elements in WiNG are:")
-        print(f"  Country: {loc_dic['country']}\n"
-            f"  Region: {loc_dic['region']}\n"
-            f"  City: {loc_dic['city']}\n"
-            f"  Campus: {loc_dic['campus']}")
-        options = [ "1. Combine 2 of the tree-node elements",
-        "2. Remove one of the tree-node elements",
-        "3. Remove all tree-node elements (requires a site to be added)"
-        ]
-        selection = self.__validResponse(options, 3)
-
-        if selection == 1:
-            print("Which tree-nodes would you like to combine?")
-            options = [ "1, Country and Region",
-            "2. Region and City",
-            "3. City and Campus"
-            ]
-            combine_selection = self.__validResponse(options, 3)
-            if combine_selection == 1:
-                loc_dic['country'] = loc_dic['country'] + ' ' + loc_dic['region']
-                del loc_dic['region']
-            elif combine_selection == 2:
-                loc_dic['region'] = loc_dic['region'] + ' ' + loc_dic['city']
-                del loc_dic['city']
-            elif combine_selection == 1:
-                loc_dic['city'] = loc_dic['city'] + ' ' + loc_dic['campus']
-                del loc_dic['campus']
-
-        elif selection == 2:
-            print("Which tree-nodes would you like to remove?")
-            options = [ f"1, Country: {loc_dic['country']}",
-            f"2. Region: {loc_dic['region']}",
-            f"3. City: {loc_dic['city']}",
-            f"4. Campus: {loc_dic['campus']}"
-            ]
-            remove_selection = self.__validResponse(options, 4)
-            if remove_selection == 1:
-                del loc_dic['country']
-            elif remove_selection == 2:
-                del loc_dic['region']
-            elif remove_selection == 3:
-                del loc_dic['city']
-            elif remove_selection == 4:
-                del loc_dic['campus']
-
-        elif selection == 3:
-            del loc_dic['country']
-            del loc_dic['region']
-            del loc_dic['city']
-            loc_dic['campus'] = f"Site-{domain}"
-
-        return(loc_dic)
 
     def __addressFromGeoCoor(self, lat_coor, long_coor):
         url = f"https://revgeocode.search.hereapi.com/v1/revgeocode?at={lat_coor},{long_coor}&apikey={self.apiKey}"
@@ -238,7 +172,8 @@ class Wing:
                 }
 
             data['address'] = address
-            
+            if data['countryCode'] == '':
+                data['countryCode'] = 'us'
             # change Country ISO to County Code - uses CSV file cc_map.csv
             filt = self.cc_df['ISO'] == data['countryCode']
             cc =  "Unknown" if pd.isna(self.cc_df.loc[filt,'CODE'].values[0]) else int(self.cc_df.loc[filt,'CODE'].values[0])
@@ -489,7 +424,10 @@ class Wing:
                         }
                         self.wingData['aps'].append(ap_data)
                         current_level[floor]['deviceCount'] += 1
-        shutil.rmtree(current_dir + '/project')           
+        self.removeProjectFolder()
 
 
-        return self.wingData, output_data                   
+        return self.wingData, output_data  
+                     
+    def removeProjectFolder(self):
+        shutil.rmtree(current_dir + '/project') 

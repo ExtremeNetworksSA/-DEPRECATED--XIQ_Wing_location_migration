@@ -212,6 +212,7 @@ try:
     rawData, output_preview = x.exportFile()
 except ValueError as e:
     print("Failed")
+    x.removeProjectFolder()
     sys.stdout.write(RED)
     sys.stdout.write(e)
     sys.stdout.write("script is exiting....\n")
@@ -220,6 +221,7 @@ except ValueError as e:
 except:
     log_msg = "Unknown Error opening and exporting Wing Tech-dump data"
     print("Failed")
+    x.removeProjectFolder()
     sys.stdout.write(RED)
     sys.stdout.write(log_msg + "\n")
     sys.stdout.write("script is exiting....\n")
